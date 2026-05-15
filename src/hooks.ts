@@ -62,7 +62,7 @@ async function onMainWindowLoad(win: _ZoteroTypes.MainWindow): Promise<void> {
   );
 
   // Register right-click menu item
-  ztoolkit.Menu.register("item", {
+  (ztoolkit as any).Menu.register("item", {
     tag: "menuitem",
     id: "zotero-itemmenu-llmwiki-ingest",
     label: getString("menuitem-ingest"),

@@ -1,20 +1,16 @@
 import { titleToSlug } from "../utils/sanitize";
 
 function getWikiBaseDir(): string {
-  const dataDir = Zotero.DataDirectory || Zotero.getStorageDirectory();
-  let path: string;
-  if (typeof dataDir === "string") {
-    path = dataDir;
-  } else {
-    path = dataDir.path;
-  }
+  const dataDir: any = Zotero.DataDirectory || (Zotero as any).getStorageDirectory();
+  const path: string = typeof dataDir === "string" ? dataDir : dataDir.path;
   return `${path}/llm-wiki/wiki/papers`;
 }
 
 async function ensureWikiDir(): Promise<string> {
   const dir = getWikiBaseDir();
+  // @ts-expect-error - Mozilla XPCOM Components is only available in Zotero/Firefox runtime
   const nsIFile = Components.classes["@mozilla.org/file/local;1"]
-    .createInstance(Components.interfaces.nsIFile);
+    .createInstance(Components.interfaces.nsIFile) as any;
   nsIFile.initWithPath(dir);
 
   if (!nsIFile.exists()) {
@@ -30,12 +26,14 @@ export async function writeWikiPage(
   const dir = await ensureWikiDir();
   const filename = `${titleToSlug(title)}.md`;
 
+  // @ts-expect-error - Mozilla XPCOM Components is only available in Zotero/Firefox runtime
   const file = Components.classes["@mozilla.org/file/local;1"]
-    .createInstance(Components.interfaces.nsIFile);
+    .createInstance(Components.interfaces.nsIFile) as any;
   file.initWithPath(`${dir}/${filename}`);
 
+  // @ts-expect-error - Mozilla XPCOM Components is only available in Zotero/Firefox runtime
   const stream = Components.classes["@mozilla.org/network/file-output-stream;1"]
-    .createInstance(Components.interfaces.nsIFileOutputStream);
+    .createInstance(Components.interfaces.nsIFileOutputStream) as any;
   stream.init(file, 0x02 | 0x08 | 0x20, 0o644, 0);
 
   const encoder = new TextEncoder();

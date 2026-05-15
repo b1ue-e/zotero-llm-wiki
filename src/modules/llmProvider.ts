@@ -64,7 +64,7 @@ export async function callLLM(messages: ChatMessage[]): Promise<string> {
       throw new Error(`API error (${response.status}): ${text.slice(0, 200)}`);
     }
 
-    const data: ChatCompletionResponse = await response.json();
+    const data = await response.json() as unknown as ChatCompletionResponse;
     return data.choices[0]?.message?.content || "";
   } catch (e: any) {
     clearTimeout(timeoutId);
@@ -77,8 +77,9 @@ export async function callLLM(messages: ChatMessage[]): Promise<string> {
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => {
+    // @ts-expect-error - Mozilla XPCOM Components is only available in Zotero/Firefox runtime
     const timer = Components.classes["@mozilla.org/timer;1"]
-      .createInstance(Components.interfaces.nsITimer);
+      .createInstance(Components.interfaces.nsITimer) as any;
     timer.initWithCallback(resolve, ms, Components.interfaces.nsITimer.TYPE_ONE_SHOT);
   });
 }

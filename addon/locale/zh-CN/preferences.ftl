@@ -1,5 +1,6 @@
-pref-title = 插件模板设置示例
-pref-enable =
-    .label = 开启
-pref-input = 输入
-pref-help = { $name } Build { $version } { $time }
+pref-title = LLM Wiki
+pref-api-endpoint = API 端点
+pref-api-key = API 密钥
+pref-model-name = 模型名称
+pref-request-timeout = 请求超时（秒）
+pref-help = { $name } 构建版本 { $version } { $time }
