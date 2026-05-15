@@ -1,0 +1,39 @@
+{
+  "name": "zotero-llm-wiki",
+  "type": "module",
+  "version": "0.1.0",
+  "description": "LLM-Wiki plugin for Zotero - compile paper knowledge with AI",
+  "config": {
+    "addonName": "LLM Wiki",
+    "addonID": "llmwiki@zotero.org",
+    "addonRef": "llmwiki",
+    "addonInstance": "LLMWiki",
+    "prefsPrefix": "extensions.zotero.llmwiki"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/b1ue-e/zotero-llm-wiki.git"
+  },
+  "author": "b1ue-e",
+  "license": "AGPL-3.0-or-later",
+  "scripts": {
+    "start": "zotero-plugin serve",
+    "build": "zotero-plugin build && tsc --noEmit",
+    "lint:check": "prettier --check . && eslint .",
+    "lint:fix": "prettier --write . && eslint . --fix",
+    "release": "zotero-plugin release",
+    "test": "zotero-plugin test"
+  },
+  "dependencies": {
+    "zotero-plugin-toolkit": "^5.1.0-beta.13"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.0",
+    "@zotero-plugin/eslint-config": "^0.6.7",
+    "eslint": "^9.39.2",
+    "prettier": "^3.7.4",
+    "typescript": "^5.9.3",
+    "zotero-plugin-scaffold": "^0.8.2",
+    "zotero-types": "^4.1.0-beta.4"
+  }
+}
