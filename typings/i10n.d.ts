@@ -3,15 +3,21 @@
 /* eslint-disable */
 // @ts-nocheck
 export type FluentMessageId =
+  | 'ingest-error-auth'
+  | 'ingest-error-network'
+  | 'ingest-error-no-metadata'
+  | 'ingest-error-timeout'
+  | 'ingest-error-unknown'
+  | 'ingest-no-selection'
+  | 'ingest-start'
+  | 'ingest-success'
   | 'item-info-row-example-label'
   | 'item-section-example1-head-text'
   | 'item-section-example1-sidenav-tooltip'
   | 'item-section-example2-button-tooltip'
   | 'item-section-example2-head-text'
   | 'item-section-example2-sidenav-tooltip'
-  | 'menuitem-filemenulabel'
-  | 'menuitem-label'
-  | 'menuitem-submenulabel'
+  | 'menuitem-ingest'
   | 'menupopup-label'
   | 'pref-api-endpoint'
   | 'pref-api-key'
@@ -19,10 +25,6 @@ export type FluentMessageId =
   | 'pref-model-name'
   | 'pref-request-timeout'
   | 'pref-title'
-  | 'prefs-table-detail'
-  | 'prefs-table-title'
   | 'prefs-title'
   | 'startup-begin'
-  | 'startup-finish'
-  | 'tabpanel-lib-tab-label'
-  | 'tabpanel-reader-tab-label';
+  | 'startup-finish';

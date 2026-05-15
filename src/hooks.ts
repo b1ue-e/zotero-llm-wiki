@@ -4,13 +4,10 @@ import { createZToolkit } from "./utils/ztoolkit";
 import { runIngest } from "./modules/ingest";
 
 async function onStartup() {
-  await Promise.all([
-    Zotero.initializationPromise,
-    Zotero.unlockPromise,
-    Zotero.uiReadyPromise,
-  ]);
+  Zotero.debug("[llmwiki] onStartup begin");
 
   initLocale();
+  Zotero.debug("[llmwiki] initLocale done");
 
   // Register preferences pane
   Zotero.PreferencePanes.register({
@@ -52,23 +49,49 @@ async function onStartup() {
   );
 
   addon.data.initialized = true;
+  Zotero.debug("[llmwiki] onStartup complete");
 }
 
 async function onMainWindowLoad(win: _ZoteroTypes.MainWindow): Promise<void> {
+  Zotero.debug("[llmwiki] onMainWindowLoad running");
+
+  // Wait for document to be ready (matches Knowledge4Zotero pattern)
+  await new Promise<void>((resolve) => {
+    if (win.document.readyState === "complete") {
+      resolve();
+    } else {
+      win.document.addEventListener("DOMContentLoaded", () => resolve(), { once: true });
+    }
+  });
+
   addon.data.ztoolkit = createZToolkit();
 
-  win.MozXULElement.insertFTLIfNeeded(
-    `${addon.data.config.addonRef}-mainWindow.ftl`,
+  // Register item context menu via DOM capture-phase listener (most reliable approach)
+  const menuID = `${addon.data.config.addonRef}-itemmenu-ingest`;
+  const menuLabel = getString("menuitem-ingest");
+  const menuIcon = `chrome://${addon.data.config.addonRef}/content/icons/favicon@0.5x.png`;
+
+  win.document.addEventListener(
+    "popupshowing",
+    (event: Event) => {
+      const popup = event.target as Element;
+      if (!popup || popup.id !== "zotero-itemmenu") return;
+
+      // Remove existing instance to avoid duplicates
+      const existing = popup.querySelector(`#${menuID}`);
+      if (existing) existing.remove();
+
+      const menuitem = (win.document as any).createXULElement("menuitem");
+      menuitem.id = menuID;
+      menuitem.setAttribute("label", menuLabel);
+      menuitem.setAttribute("image", menuIcon);
+      menuitem.addEventListener("command", () => addon.hooks.onMenuIngest());
+      popup.appendChild(menuitem);
+    },
+    true,
   );
 
-  // Register right-click menu item
-  (ztoolkit as any).Menu.register("item", {
-    tag: "menuitem",
-    id: "zotero-itemmenu-llmwiki-ingest",
-    label: getString("menuitem-ingest"),
-    icon: `chrome://${addon.data.config.addonRef}/content/icons/favicon@0.5x.png`,
-    commandListener: (ev: Event) => addon.hooks.onMenuIngest(),
-  });
+  Zotero.debug("[llmwiki] menu registered via DOM listener");
 }
 
 async function onMainWindowUnload(win: Window): Promise<void> {

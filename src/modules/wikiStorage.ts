@@ -1,73 +1,281 @@
 import { titleToSlug } from "../utils/sanitize";
 
+// ─── Directory structure (Karpathy LLM-Wiki pattern) ───
+//
+//   llm-wiki/
+//   ├── wiki/
+//   │   ├── index.md       ← catalog of all pages
+//   │   ├── log.md          ← append-only operation log
+//   │   ├── papers/         ← individual paper wiki pages
+//   │   ├── concepts/       ← concept pages (future)
+//   │   └── entities/       ← entity pages (future)
+//   └── raw/                ← immutable source documents (future)
+
 function getWikiBaseDir(): string {
-  const dataDir: any = Zotero.DataDirectory || (Zotero as any).getStorageDirectory();
-  const path: string = typeof dataDir === "string" ? dataDir : dataDir.path;
-  return `${path}/llm-wiki/wiki/papers`;
+  let dataPath = Zotero.Prefs.get("dataDir") as string;
+  if (!dataPath) {
+    const storagePath = Zotero.getStorageDirectory().path;
+    dataPath = storagePath.substring(0, storagePath.lastIndexOf("/"));
+  }
+  return `${dataPath}/llm-wiki/wiki`;
 }
 
-async function ensureWikiDir(): Promise<string> {
-  const dir = getWikiBaseDir();
+function getRawDir(): string {
+  let dataPath = Zotero.Prefs.get("dataDir") as string;
+  if (!dataPath) {
+    const storagePath = Zotero.getStorageDirectory().path;
+    dataPath = storagePath.substring(0, storagePath.lastIndexOf("/"));
+  }
+  return `${dataPath}/llm-wiki/raw`;
+}
+
+// ─── XPCOM file helpers ───
+
+function makeDir(path: string): void {
   // @ts-expect-error - Mozilla XPCOM Components is only available in Zotero/Firefox runtime
   const nsIFile = Components.classes["@mozilla.org/file/local;1"]
     .createInstance(Components.interfaces.nsIFile) as any;
-  nsIFile.initWithPath(dir);
-
+  nsIFile.initWithPath(path);
   if (!nsIFile.exists()) {
     nsIFile.create(Components.interfaces.nsIFile.DIRECTORY_TYPE, 0o755);
   }
-  return dir;
 }
 
-export async function writeWikiPage(
-  title: string,
-  content: string,
-): Promise<string> {
-  const dir = await ensureWikiDir();
-  const filename = `${titleToSlug(title)}.md`;
-
+function writeFile(path: string, content: string): void {
   // @ts-expect-error - Mozilla XPCOM Components is only available in Zotero/Firefox runtime
   const file = Components.classes["@mozilla.org/file/local;1"]
     .createInstance(Components.interfaces.nsIFile) as any;
-  file.initWithPath(`${dir}/${filename}`);
-
+  file.initWithPath(path);
   // @ts-expect-error - Mozilla XPCOM Components is only available in Zotero/Firefox runtime
   const stream = Components.classes["@mozilla.org/network/file-output-stream;1"]
     .createInstance(Components.interfaces.nsIFileOutputStream) as any;
   stream.init(file, 0x02 | 0x08 | 0x20, 0o644, 0);
-
-  const encoder = new TextEncoder();
-  const data = encoder.encode(content);
-  stream.write(data, data.length);
+  // Use nsIConverterOutputStream for proper UTF-8 encoding
+  // @ts-expect-error - Mozilla XPCOM Components is only available in Zotero/Firefox runtime
+  const converter = Components.classes["@mozilla.org/intl/converter-output-stream;1"]
+    .createInstance(Components.interfaces.nsIConverterOutputStream) as any;
+  converter.init(stream, "UTF-8", 0, 0x0000);
+  converter.writeString(content);
+  converter.close();
   stream.close();
-
-  return file.path;
 }
 
+function readFile(path: string): string | null {
+  // @ts-expect-error - Mozilla XPCOM Components is only available in Zotero/Firefox runtime
+  const file = Components.classes["@mozilla.org/file/local;1"]
+    .createInstance(Components.interfaces.nsIFile) as any;
+  file.initWithPath(path);
+  if (!file.exists()) return null;
+  // @ts-expect-error - Mozilla XPCOM Components is only available in Zotero/Firefox runtime
+  const stream = Components.classes["@mozilla.org/network/file-input-stream;1"]
+    .createInstance(Components.interfaces.nsIFileInputStream) as any;
+  stream.init(file, 0x01, 0o644, 0);
+  const available = stream.available();
+  // @ts-expect-error - Mozilla XPCOM Components is only available in Zotero/Firefox runtime
+  const data = Components.classes["@mozilla.org/binaryinputstream;1"]
+    .createInstance(Components.interfaces.nsIBinaryInputStream) as any;
+  data.setInputStream(stream);
+  const text = data.readBytes(available);
+  stream.close();
+  return text;
+}
+
+function ensureDirs(): void {
+  const base = getWikiBaseDir();
+  makeDir(base);
+  makeDir(`${base}/papers`);
+  makeDir(`${base}/concepts`);
+  makeDir(`${base}/entities`);
+  makeDir(getRawDir());
+}
+
+// ─── Wiki page writer (Karpathy schema) ───
+
+export async function writeWikiPage(
+  title: string,
+  content: string,
+  metadata: PaperMetadata,
+): Promise<string> {
+  ensureDirs();
+
+  const slug = titleToSlug(title);
+  const now = new Date().toISOString().slice(0, 10);
+  const tags = buildTags(metadata);
+  const tagStr = tags.map((t) => `"${t}"`).join(", ");
+
+  const frontmatter = [
+    "---",
+    `title: "${escapeYaml(title)}"`,
+    `type: paper`,
+    `slug: ${slug}`,
+    `created: ${now}`,
+    `updated: ${now}`,
+    ...(metadata.authors ? [`authors: "${escapeYaml(metadata.authors)}"`] : []),
+    ...(metadata.year ? [`year: ${metadata.year}`] : []),
+    ...(metadata.doi ? [`doi: "${metadata.doi}"`] : []),
+    ...(metadata.publication ? [`publication: "${escapeYaml(metadata.publication)}"`] : []),
+    `tags: [${tagStr}]`,
+    "---",
+    "",
+  ].join("\n");
+
+  const pageContent = frontmatter + content;
+
+  const papersDir = `${getWikiBaseDir()}/papers`;
+  const filePath = `${papersDir}/${slug}.md`;
+  writeFile(filePath, pageContent);
+
+  // Update index.md and log.md
+  updateIndex(slug, title, metadata);
+  appendLog("ingest", `paper: [[papers/${slug}|${title}]]`);
+
+  Zotero.debug(`[llmwiki] wiki page written: ${filePath}`);
+  return filePath;
+}
+
+// ─── index.md ───
+
+function updateIndex(slug: string, title: string, metadata: PaperMetadata): void {
+  const indexPath = `${getWikiBaseDir()}/index.md`;
+  const now = new Date().toISOString().slice(0, 10);
+  const line = `- (${metadata.year || "?"}) [[papers/${slug}|${title}]] | ${extractSummary(metadata)}`;
+
+  let content = readFile(indexPath);
+  if (!content) {
+    content = [
+      "---",
+      `title: Wiki Index`,
+      `created: ${now}`,
+      `updated: ${now}`,
+      "---",
+      "",
+      "# Wiki Index",
+      "",
+      `Last updated: ${now}`,
+      "",
+      "## Papers",
+      "",
+      line,
+      "",
+    ].join("\n");
+  } else {
+    // Replace updated date
+    content = content.replace(
+      /^updated: .*$/m,
+      `updated: ${now}`,
+    );
+    content = content.replace(
+      /^Last updated: .*$/m,
+      `Last updated: ${now}`,
+    );
+    // Append new entry under ## Papers
+    if (!content.includes(line)) {
+      content = content.replace(
+        /(## Papers\n)/,
+        `$1${line}\n`,
+      );
+    }
+  }
+  writeFile(indexPath, content);
+}
+
+// ─── log.md ───
+
+function appendLog(operation: string, description: string): void {
+  const logPath = `${getWikiBaseDir()}/log.md`;
+  const now = new Date().toISOString().slice(0, 10);
+
+  let content = readFile(logPath);
+  if (!content) {
+    content = [
+      "---",
+      `title: Operation Log`,
+      `created: ${now}`,
+      "---",
+      "",
+      "# Operation Log",
+      "",
+    ].join("\n");
+  }
+  content += `\n## ${now} | ${operation}\n${description}\n`;
+  writeFile(logPath, content);
+}
+
+function extractSummary(metadata: PaperMetadata): string {
+  const abs = metadata.abstract || "";
+  // Take first sentence
+  const firstSentence = abs.split(/[.。]/)[0]?.trim();
+  return firstSentence ? firstSentence.slice(0, 120) : "No abstract";
+}
+
+function buildTags(metadata: PaperMetadata): string[] {
+  const tags: string[] = [];
+  const text = `${metadata.title} ${metadata.abstract || ""} ${metadata.publication || ""}`.toLowerCase();
+  // Simple keyword detection
+  const keywords: [string, RegExp][] = [
+    ["machine-learning", /machine.learning|deep.learning|neural.network|transformer|llm/i],
+    ["genomics", /genom|gene|dna|rna|protein|mutation|hereditary/i],
+    ["neuroscience", /neuron|brain|neural|cognit|cortex/i],
+    ["immunology", /immun|t.cell|b.cell|antibod/i],
+    ["cancer", /cancer|tumor|oncol/i],
+    ["epidemiology", /epidem|public.health|cohort|prevalence/i],
+    ["bioinformatics", /bioinformatic|computational|algorithm|pipeline/i],
+    ["clinical", /clinical|trial|patient|therapy|treatment/i],
+    ["imaging", /imaging|mri|ct.scan|microscop/i],
+    ["single-cell", /single.cell|scrna|scatac|scmulti/i],
+  ];
+  for (const [tag, re] of keywords) {
+    if (re.test(text)) tags.push(tag);
+  }
+  if (tags.length === 0) tags.push("research");
+  return tags;
+}
+
+function escapeYaml(s: string): string {
+  return s.replace(/"/g, '\\"').replace(/\n/g, " ");
+}
+
+// ─── Prompts ───
+
 export function buildSystemPrompt(): string {
-  return `You are a research assistant. Your task is to compile a structured wiki entry for an academic paper.
+  return `You are a research assistant building a structured, interlinked Markdown knowledge base following Karpathy's LLM-Wiki schema.
 
-Generate a Markdown wiki page with the following sections:
+You MUST respond with a complete wiki page in the format shown below. Do NOT include YAML frontmatter — it will be added automatically.
 
+## Format Requirements
+
+### 1. Cross-references
+Use [[wiki-link]] syntax (Obsidian-compatible) when referencing:
+- Other papers: [[papers/title-slug|Paper Title]]
+- Concepts: [[concepts/concept-name|Concept Name]]
+- Entities: [[entities/entity-name|Entity Name]]
+
+### 2. Sections (all required)
 ## Research Question
-What problem does this paper address?
+What problem does this paper address? 2-3 sentences.
 
 ## Method
-How did the authors approach the problem? Key methodology details.
+Key methodology details. Use bullet points.
 
 ## Key Findings
-What are the main results and contributions?
+Main results and contributions. Use bullet points.
 
 ## Conclusions
-What do the authors conclude? Implications of the work.
+What the authors conclude. Implications.
 
 ## Limitations
-What limitations do the authors acknowledge (or are apparent)?
+Limitations the authors acknowledge (or are apparent).
 
 ## Related Work
-Mention key related papers or competing approaches discussed.
+Key related papers or competing approaches discussed. Use [[wikilinks]] where appropriate.
 
-Use clear, academic language. Be precise and concise. Write in the same language as the paper's abstract.`;
+## See Also
+2-3 [[wikilinks]] to related concepts or entities that should be explored.
+
+### 3. Style
+- Academic, precise, concise
+- Write in the same language as the paper's abstract
+- Each section should be 2-5 sentences`;
 }
 
 export function buildUserPrompt(metadata: PaperMetadata): string {
@@ -78,6 +286,7 @@ export function buildUserPrompt(metadata: PaperMetadata): string {
   if (metadata.year) parts.push(`# Year\n${metadata.year}`);
   if (metadata.publication) parts.push(`# Publication\n${metadata.publication}`);
   if (metadata.doi) parts.push(`# DOI\n${metadata.doi}`);
+  parts.push("\nGenerate the wiki page following the required format exactly.");
   return parts.join("\n\n");
 }
 

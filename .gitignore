@@ -14,3 +14,17 @@ tsconfig.tsbuildinfo
 .scaffold
 build
 logs
+
+# Built artifacts
+*.xpi
+
+# Early test files (real ones in addon/locale/)
+/addon.ftl
+
+# Docs / planning
+docs/
+
+# IDE
+.vscode/
+.idea/
+*.swp

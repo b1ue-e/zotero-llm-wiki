@@ -10,12 +10,16 @@ var chromeHandle;
 function install(data, reason) {}
 
 async function startup({ id, version, resourceURI, rootURI }, reason) {
+  await Zotero.initializationPromise;
+
   var aomStartup = Components.classes[
     "@mozilla.org/addons/addon-manager-startup;1"
   ].getService(Components.interfaces.amIAddonManagerStartup);
   var manifestURI = Services.io.newURI(rootURI + "manifest.json");
   chromeHandle = aomStartup.registerChrome(manifestURI, [
     ["content", "__addonRef__", rootURI + "content/"],
+    ["locale", "__addonRef__", "en-US", rootURI + "locale/en-US/"],
+    ["locale", "__addonRef__", "zh-CN", rootURI + "locale/zh-CN/"],
   ]);
 
   /**
@@ -24,7 +28,10 @@ async function startup({ id, version, resourceURI, rootURI }, reason) {
    * and all child variables assigned to it is globally accessible.
    * See `src/index.ts` for details.
    */
-  const ctx = { rootURI };
+  const ctx = {
+    rootURI,
+    document: Zotero.getMainWindow().document,
+  };
   ctx._globalThis = ctx;
 
   Services.scriptloader.loadSubScript(
@@ -34,12 +41,12 @@ async function startup({ id, version, resourceURI, rootURI }, reason) {
   await Zotero.__addonInstance__.hooks.onStartup();
 }
 
-async function onMainWindowLoad({ window }, reason) {
-  await Zotero.__addonInstance__?.hooks.onMainWindowLoad(window);
+function onMainWindowLoad({ window: win }) {
+  Zotero.__addonInstance__.hooks.onMainWindowLoad(win);
 }
 
-async function onMainWindowUnload({ window }, reason) {
-  await Zotero.__addonInstance__?.hooks.onMainWindowUnload(window);
+function onMainWindowUnload({ window: win }) {
+  Zotero.__addonInstance__.hooks.onMainWindowUnload(win);
 }
 
 async function shutdown({ id, version, resourceURI, rootURI }, reason) {

@@ -8,4 +8,5 @@ item-section-example2-sidenav-tooltip =
     .tooltiptext = 这是插件模板面板(阅读器)
 item-section-example2-button-tooltip =
     .tooltiptext = 移除此面板
+menuitem-ingest = LLM Wiki: 编译 Wiki
 item-info-row-example-label = 示例行

@@ -7,6 +7,8 @@ export function titleToSlug(title: string): string {
   const hash = simpleHash(title).slice(0, 8);
   let slug = title
     .replace(/[/\\:*?"<>|]/g, "")
+    .replace(/[–—]/g, "-")        // en-dash + em-dash → hyphen
+    .replace(/[^\x00-\x7F]/g, "")           // strip non-ASCII chars
     .replace(/\s+/g, "-")
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "")

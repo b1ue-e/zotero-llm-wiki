@@ -15,6 +15,7 @@
     "url": "git+https://github.com/b1ue-e/zotero-llm-wiki.git"
   },
   "author": "b1ue-e",
+  "homepage": "https://github.com/b1ue-e/zotero-llm-wiki#readme",
   "license": "AGPL-3.0-or-later",
   "scripts": {
     "start": "zotero-plugin serve",

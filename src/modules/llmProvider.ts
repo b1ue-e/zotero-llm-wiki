@@ -15,13 +15,13 @@ interface ChatCompletionResponse {
 
 /**
  * Call the OpenAI-compatible chat completions API.
- * Reads API key, endpoint, and model from plugin preferences.
+ * Uses XMLHttpRequest (available in Zotero privileged sandbox) instead of fetch
+ * to avoid AbortController dependency issues.
  */
 export async function callLLM(messages: ChatMessage[]): Promise<string> {
   const endpoint = getPref("apiEndpoint") as string;
   const apiKey = getPref("apiKey") as string;
   const model = getPref("modelName") as string;
-  const timeout = (getPref("requestTimeout") as number) || 120;
 
   if (!endpoint || !apiKey) {
     throw new Error("API endpoint or key not configured. Open Preferences → LLM Wiki.");
@@ -31,48 +31,45 @@ export async function callLLM(messages: ChatMessage[]): Promise<string> {
     ? endpoint
     : endpoint.replace(/\/$/, "") + "/chat/completions";
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeout * 1000);
+  const body = JSON.stringify({
+    model,
+    messages,
+    temperature: 0.3,
+    max_tokens: 4096,
+  });
 
-  try {
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model,
-        messages,
-        temperature: 0.3,
-        max_tokens: 4096,
-      }),
-      signal: controller.signal,
-    });
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", url, true);
+    xhr.setRequestHeader("Content-Type", "application/json");
+    xhr.setRequestHeader("Authorization", `Bearer ${apiKey}`);
+    xhr.timeout = ((getPref("requestTimeout") as number) || 120) * 1000;
 
-    clearTimeout(timeoutId);
+    xhr.onload = () => {
+      if (xhr.status === 401 || xhr.status === 403) {
+        reject(new Error("auth"));
+        return;
+      }
+      if (xhr.status === 429) {
+        delay(5000).then(() => resolve(callLLM(messages)));
+        return;
+      }
+      if (xhr.status < 200 || xhr.status >= 300) {
+        reject(new Error(`API error (${xhr.status}): ${xhr.responseText?.slice(0, 200) || ""}`));
+        return;
+      }
+      try {
+        const data = JSON.parse(xhr.responseText || "{}") as unknown as ChatCompletionResponse;
+        resolve(data.choices[0]?.message?.content || "");
+      } catch (e: any) {
+        reject(new Error(`Failed to parse response: ${e.message}`));
+      }
+    };
 
-    if (response.status === 401 || response.status === 403) {
-      throw new Error("auth");
-    }
-    if (response.status === 429) {
-      await delay(5000);
-      return callLLM(messages);
-    }
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`API error (${response.status}): ${text.slice(0, 200)}`);
-    }
-
-    const data = await response.json() as unknown as ChatCompletionResponse;
-    return data.choices[0]?.message?.content || "";
-  } catch (e: any) {
-    clearTimeout(timeoutId);
-    if (e.name === "AbortError") {
-      throw new Error("timeout");
-    }
-    throw e;
-  }
+    xhr.onerror = () => reject(new Error("Network error: Unable to reach API."));
+    xhr.ontimeout = () => reject(new Error("timeout"));
+    xhr.send(body);
+  });
 }
 
 function delay(ms: number): Promise<void> {

@@ -1,6 +1,16 @@
 import { callLLM } from "./llmProvider";
 import { buildSystemPrompt, buildUserPrompt, writeWikiPage, PaperMetadata } from "./wikiStorage";
 import { getString } from "../utils/locale";
+import type { FluentMessageId } from "../../typings/i10n";
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    // @ts-expect-error - Mozilla XPCOM Components is only available in Zotero/Firefox runtime
+    const timer = Components.classes["@mozilla.org/timer;1"]
+      .createInstance(Components.interfaces.nsITimer) as any;
+    timer.initWithCallback(resolve, ms, Components.interfaces.nsITimer.TYPE_ONE_SHOT);
+  });
+}
 
 export async function runIngest(item: Zotero.Item): Promise<void> {
   const metadata = extractMetadata(item);
@@ -22,39 +32,39 @@ export async function runIngest(item: Zotero.Item): Promise<void> {
     const systemPrompt = buildSystemPrompt();
     const userPrompt = buildUserPrompt(metadata);
 
+    Zotero.debug("[llmwiki] calling LLM...");
     const wikiContent = await callLLM([
       { role: "system", content: systemPrompt },
       { role: "user", content: userPrompt },
     ]);
+    Zotero.debug(`[llmwiki] LLM returned ${wikiContent.length} chars`);
 
     progress.changeLine({
       text: `Writing wiki for "${metadata.title.slice(0, 80)}"...`,
       progress: 80,
     });
 
-    const filePath = await writeWikiPage(metadata.title, wikiContent);
+    const filePath = await writeWikiPage(metadata.title, wikiContent, metadata);
+    Zotero.debug(`[llmwiki] wiki saved to ${filePath}`);
 
-    progress.changeLine({
-      text: getString("ingest-success", { args: { title: metadata.title.slice(0, 80) } }),
-      type: "success",
-      progress: 100,
-    });
-    progress.startCloseTimer(5000);
-  } catch (e: any) {
     progress.startCloseTimer(0);
-    let errorKey = "ingest-error-unknown";
+    showNotification(
+      getString("ingest-success", { args: { title: metadata.title.slice(0, 80) } }),
+      "success",
+    );
+  } catch (e: any) {
+    Zotero.debug(`[llmwiki] ingest error: ${e.message}\n${e.stack || ""}`);
+    let errorKey: FluentMessageId = "ingest-error-unknown";
     if (e.message === "auth") errorKey = "ingest-error-auth";
     else if (e.message === "timeout") errorKey = "ingest-error-timeout";
     else if (e.message?.includes("fetch") || e.message?.includes("Network"))
       errorKey = "ingest-error-network";
 
-    new ztoolkit.ProgressWindow(addon.data.config.addonName)
-      .createLine({
-        text: getString(errorKey, { args: { message: e.message?.slice(0, 100) || "" } }),
-        type: "error",
-        progress: 100,
-      })
-      .show();
+    progress.startCloseTimer(0);
+    showNotification(
+      getString(errorKey, { args: { message: e.message?.slice(0, 100) || "" } }),
+      "error",
+    );
   }
 }
 
