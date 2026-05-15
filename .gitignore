@@ -27,4 +27,4 @@ docs/
 # IDE
 .vscode/
 .idea/
-*.swp
+*.swp/STATUS.md
