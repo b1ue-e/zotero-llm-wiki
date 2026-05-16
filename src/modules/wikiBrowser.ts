@@ -7,6 +7,7 @@ import {
   type FileNode,
   type ParsedPage,
 } from "./wikiReader";
+import { getWikiBaseDir, readFile } from "../utils/xpcom";
 
 // ─── State ───
 
@@ -349,10 +350,10 @@ function showEditor(page: ParsedPage): void {
   if (!state.content || !state.doc) return;
   const doc = state.doc;
 
-  const frontmatterYaml = Object.entries(page.frontmatter)
-    .map(([k, v]) => `${k}: "${v.replace(/"/g, '\\"')}"`)
-    .join("\n");
-  const raw = `---\n${frontmatterYaml}\n---\n\n${page.body}`;
+  // Read raw file from disk to avoid round-trip escaping issues
+  // with parseFrontmatter → reconstruct frontmatter
+  const fullPath = `${getWikiBaseDir()}/${page.filePath}`;
+  const raw = readFile(fullPath) || "";
 
   // Clear content
   while (state.content.firstChild) state.content.removeChild(state.content.firstChild);
