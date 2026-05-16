@@ -93,23 +93,26 @@ function escapeHTML(s: string): string {
 
 // ─── Public Entry Point ───
 
-export function renderWikiBrowser({ body }: { body: HTMLElement; doc: Document }): void {
+export function renderWikiBrowser({ body, doc }: { body: HTMLElement; doc: Document }): void {
   if (!body) return;
   try {
     body.innerHTML = getShellHTML();
-    state.tree = body.querySelector("#llmwiki-browser-tree") as HTMLElement;
-    state.content = body.querySelector("#llmwiki-browser-content") as HTMLElement;
+    // Traverse DOM children directly — querySelector/getElementById may
+    // not resolve IDs in XUL-injected HTML content within Zotero sandbox
+    const container = body.children[1] as HTMLElement; // 2nd child after <style>
+    if (!container || container.children.length < 3) {
+      body.innerHTML = `<div style="color:red;padding:12px">DOM error: children=${body.children.length}</div>`;
+      return;
+    }
+    state.tree = container.children[0] as HTMLElement;
+    state.content = container.children[2] as HTMLElement; // index 1 is splitter
 
-    if (state.tree) {
-      state.tree.addEventListener("click", handleTreeClick);
-    }
-    if (state.content) {
-      state.content.addEventListener("click", handleContentClick);
-    }
+    state.tree.addEventListener("click", handleTreeClick);
+    state.content.addEventListener("click", handleContentClick);
 
     buildFileTree();
 
-    const splitter = body.querySelector("#llmwiki-browser-splitter") as HTMLElement;
+    const splitter = container.children[1] as HTMLElement;
     if (splitter) {
       splitter.addEventListener("mousedown", handleSplitterDrag);
     }
@@ -276,19 +279,16 @@ function showEditor(page: ParsedPage): void {
   setContent(html);
   state.mode = "edit";
 
-  const ownerDoc = state.content?.ownerDocument;
-  if (ownerDoc) {
-    const editor = ownerDoc.getElementById("llmwiki-editor") as HTMLTextAreaElement;
-    if (editor) editor.focus();
-  }
+  // Find textarea via DOM traversal (querySelector/getElementById unreliable in XUL)
+  const editor = state.content?.children[1] as HTMLTextAreaElement;
+  if (editor?.tagName === "TEXTAREA") editor.focus();
 }
 
 function saveCurrentPage(): void {
   if (!state.currentPage) return;
-  const ownerDoc = state.content?.ownerDocument;
-  if (!ownerDoc) return;
-  const editor = ownerDoc.getElementById("llmwiki-editor") as HTMLTextAreaElement;
-  if (!editor) return;
+  // Find textarea via DOM traversal (querySelector/getElementById unreliable in XUL)
+  const editor = state.content?.children[1] as HTMLTextAreaElement;
+  if (!editor || editor.tagName !== "TEXTAREA") return;
 
   savePage(state.currentPage.filePath, editor.value);
 
