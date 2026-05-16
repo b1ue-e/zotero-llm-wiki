@@ -368,10 +368,20 @@ function saveCurrentPage(): void {
   }
   if (!editor) return;
 
-  savePage(state.currentPage.filePath, editor.value);
+  const newRaw = editor.value;
 
+  // Persist to disk
+  savePage(state.currentPage.filePath, newRaw);
+
+  // Parse edited content and show preview directly (avoid file re-read round-trip)
+  const { frontmatter, body } = parseFrontmatter(newRaw);
+  state.currentPage = {
+    frontmatter,
+    body,
+    filePath: state.currentPage.filePath,
+  };
   state.mode = "preview";
-  loadPage(state.currentPage.filePath);
+  showPreview(state.currentPage);
 }
 
 // ─── Content Click Handler ───
