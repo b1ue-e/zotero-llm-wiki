@@ -26,6 +26,7 @@
     "test": "zotero-plugin test"
   },
   "dependencies": {
+    "marked": "^18.0.3",
     "zotero-plugin-toolkit": "^5.1.0-beta.13"
   },
   "devDependencies": {
