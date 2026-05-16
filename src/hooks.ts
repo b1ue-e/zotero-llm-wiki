@@ -1,7 +1,8 @@
-import { getString, initLocale } from "./utils/locale";
+import { getString, initLocale, getLocaleID } from "./utils/locale";
 import { registerPrefsScripts } from "./modules/preferenceScript";
 import { createZToolkit } from "./utils/ztoolkit";
 import { runIngest } from "./modules/ingest";
+import { renderWikiBrowser } from "./modules/wikiBrowser";
 
 async function onStartup() {
   Zotero.debug("[llmwiki] onStartup begin");
@@ -15,6 +16,23 @@ async function onStartup() {
     src: rootURI + "content/preferences.xhtml",
     label: getString("prefs-title"),
     image: `chrome://${addon.data.config.addonRef}/content/icons/favicon.png`,
+  });
+
+  // Register Wiki Browser panel
+  Zotero.ItemPaneManager.registerSection({
+    paneID: `${addon.data.config.addonRef}-wikiBrowser`,
+    pluginID: addon.data.config.addonID,
+    sidenav: {
+      icon: `chrome://${addon.data.config.addonRef}/content/icons/favicon.png`,
+      l10nID: getLocaleID("section-wikibrowser-sidenav-tooltip"),
+    },
+    header: {
+      icon: `chrome://${addon.data.config.addonRef}/content/icons/favicon.png`,
+      l10nID: getLocaleID("section-wikibrowser-head-text"),
+    },
+    onRender: ({ body, doc }) => {
+      renderWikiBrowser({ body, doc });
+    },
   });
 
   // Register item notifier
