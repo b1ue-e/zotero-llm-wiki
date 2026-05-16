@@ -94,25 +94,29 @@ function escapeHTML(s: string): string {
 // ─── Public Entry Point ───
 
 export function renderWikiBrowser({ body }: { body: HTMLElement; doc: Document }): void {
-  Zotero.debug(`[llmwiki] renderWikiBrowser start, body=${!!body}`);
   if (!body) return;
-  body.innerHTML = getShellHTML();
-  state.tree = body.querySelector("#llmwiki-browser-tree") as HTMLElement;
-  state.content = body.querySelector("#llmwiki-browser-content") as HTMLElement;
+  try {
+    body.innerHTML = getShellHTML();
+    state.tree = body.querySelector("#llmwiki-browser-tree") as HTMLElement;
+    state.content = body.querySelector("#llmwiki-browser-content") as HTMLElement;
 
-  if (state.tree) {
-    state.tree.addEventListener("click", handleTreeClick);
-  }
-  if (state.content) {
-    state.content.addEventListener("click", handleContentClick);
-  }
+    if (state.tree) {
+      state.tree.addEventListener("click", handleTreeClick);
+    }
+    if (state.content) {
+      state.content.addEventListener("click", handleContentClick);
+    }
 
-  buildFileTree();
+    buildFileTree();
 
-  // Render splitter drag
-  const splitter = body.querySelector("#llmwiki-browser-splitter") as HTMLElement;
-  if (splitter) {
-    splitter.addEventListener("mousedown", handleSplitterDrag);
+    const splitter = body.querySelector("#llmwiki-browser-splitter") as HTMLElement;
+    if (splitter) {
+      splitter.addEventListener("mousedown", handleSplitterDrag);
+    }
+  } catch (e: any) {
+    if (state.content) {
+      state.content.innerHTML = `<div class="llmwiki-empty" style="color:red">Error: ${e.message || String(e)}</div>`;
+    }
   }
 }
 
@@ -170,7 +174,6 @@ function getShellHTML(): string {
 function buildFileTree(): void {
   if (!state.tree) return;
   const treeData = listTree();
-  Zotero.debug(`[llmwiki] buildFileTree: ${treeData.length} dirs, papers=${treeData[0]?.children?.length || 0} files`);
   let html = "";
 
   for (const dir of treeData) {

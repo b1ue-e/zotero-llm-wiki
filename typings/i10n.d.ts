@@ -26,5 +26,7 @@ export type FluentMessageId =
   | 'pref-request-timeout'
   | 'pref-title'
   | 'prefs-title'
+  | 'section-wikibrowser-head-text'
+  | 'section-wikibrowser-sidenav-tooltip'
   | 'startup-begin'
   | 'startup-finish';

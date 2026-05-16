@@ -31,9 +31,7 @@ async function onStartup() {
       l10nID: getLocaleID("section-wikibrowser-head-text"),
     },
     onRender: ({ body, doc }) => {
-      Zotero.debug("[llmwiki] onRender called for wikiBrowser");
       renderWikiBrowser({ body, doc });
-      Zotero.debug("[llmwiki] renderWikiBrowser completed");
     },
   });
   Zotero.debug(`[llmwiki] registerSection returned: ${registered}`);
