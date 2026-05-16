@@ -161,7 +161,7 @@ function getShellHTML(): string {
         text-align: center; }
     </style>
     <div id="llmwiki-browser">
-      <div id="llmwiki-browser-tree"></div>
+      <div id="llmwiki-browser-tree" style="background:#ffe0e0;min-height:100px">LOADING...</div>
       <div id="llmwiki-browser-splitter"></div>
       <div id="llmwiki-browser-content">
         <div class="llmwiki-empty">Select a file from the tree to preview</div>
