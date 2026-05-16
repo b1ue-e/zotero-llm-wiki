@@ -3,13 +3,10 @@ import {
   listTree,
   readPage,
   savePage,
-  searchPages,
-  parseIndex,
   parseFrontmatter,
   type FileNode,
   type ParsedPage,
 } from "./wikiReader";
-import { getWikiBaseDir } from "../utils/xpcom";
 
 // ─── State ───
 
@@ -19,6 +16,7 @@ interface BrowserState {
   mode: "preview" | "edit";
   tree: HTMLElement | null;
   content: HTMLElement | null;
+  doc: Document | null;
 }
 
 const state: BrowserState = {
@@ -27,6 +25,7 @@ const state: BrowserState = {
   mode: "preview",
   tree: null,
   content: null,
+  doc: null,
 };
 
 // ─── Markdown Rendering ───
@@ -34,7 +33,6 @@ const state: BrowserState = {
 function renderMarkdown(raw: string): string {
   const { frontmatter, body } = parseFrontmatter(raw);
 
-  // Build metadata card HTML
   let metaHtml = "";
   const title = frontmatter["title"] || "";
   const authors = frontmatter["authors"] || "";
@@ -68,7 +66,6 @@ function renderMarkdown(raw: string): string {
     ].join("");
   }
 
-  // Replace [[wikilinks]] with clickable spans before Markdown parsing
   const withLinks = body.replace(
     /\[\[([^\]]+)\]\]/g,
     (_match: string, ref: string) => {
@@ -91,107 +88,137 @@ function escapeHTML(s: string): string {
     .replace(/"/g, "&quot;");
 }
 
+// ─── CSS ───
+
+const PANEL_CSS = `
+  #llmwiki-browser { display: flex; height: 100%; overflow: hidden; }
+  #llmwiki-browser-tree { width: 200px; min-width: 80px; overflow-y: auto;
+    border-right: 1px solid var(--fill-quaternary, #e0e0e0); padding: 8px; }
+  #llmwiki-browser-splitter { width: 4px; cursor: col-resize; flex-shrink: 0; }
+  #llmwiki-browser-splitter:hover { background: var(--fill-quaternary, #e0e0e0); }
+  #llmwiki-browser-content { flex: 1; overflow-y: auto; padding: 12px; }
+  .llmwiki-tree-item { padding: 3px 8px; cursor: pointer; border-radius: 4px;
+    font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .llmwiki-tree-item:hover { background: var(--fill-tertiary, #f0f0f0); }
+  .llmwiki-tree-item.active { background: var(--accent-selected, #0060df);
+    color: var(--text-selected, #fff); }
+  .llmwiki-tree-dir { font-weight: 600; padding: 6px 8px 3px; font-size: 12px;
+    text-transform: uppercase; color: var(--text-secondary, #666); }
+  .llmwiki-metadata { background: var(--fill-secondary, #f5f5f5);
+    border-radius: 6px; padding: 12px; margin-bottom: 16px; }
+  .llmwiki-metadata-title { font-size: 1.2em; font-weight: 600; margin-bottom: 8px; }
+  .llmwiki-metadata-row { display: flex; flex-wrap: wrap; gap: 12px;
+    font-size: 0.85em; color: var(--text-secondary, #666); margin-bottom: 6px; }
+  .llmwiki-metadata-tags { margin-top: 6px; }
+  .llmwiki-tag { display: inline-block; background: var(--accent-tertiary, #e0e0ff);
+    color: var(--text-on-accent, #000); border-radius: 3px; padding: 1px 6px;
+    font-size: 0.8em; margin-right: 4px; }
+  a.wikilink { color: var(--accent-selected, #0060df); cursor: pointer;
+    text-decoration: underline; text-decoration-style: dotted; }
+  a.wikilink:hover { text-decoration-style: solid; }
+  .llmwiki-editor { width: 100%; height: 100%; min-height: 300px; border: none;
+    resize: none; font-family: monospace; font-size: 13px; padding: 0;
+    background: transparent; color: inherit; }
+  .llmwiki-toolbar { display: flex; justify-content: flex-end; gap: 8px;
+    margin-bottom: 8px; }
+  .llmwiki-btn { padding: 4px 12px; border-radius: 4px; border: 1px solid
+    var(--fill-quaternary, #ccc); background: var(--fill-secondary, #f5f5f5);
+    cursor: pointer; font-size: 12px; }
+  .llmwiki-btn:hover { background: var(--fill-tertiary, #e0e0e0); }
+  .llmwiki-empty { color: var(--text-secondary, #999); padding: 24px;
+    text-align: center; }
+`;
+
 // ─── Public Entry Point ───
 
 export function renderWikiBrowser({ body, doc }: { body: HTMLElement; doc: Document }): void {
   if (!body) return;
-  try {
-    body.innerHTML = getShellHTML();
-    // Traverse DOM children directly — querySelector/getElementById may
-    // not resolve IDs in XUL-injected HTML content within Zotero sandbox
-    const container = body.children[1] as HTMLElement; // 2nd child after <style>
-    if (!container || container.children.length < 3) {
-      body.innerHTML = `<div style="color:red;padding:12px">DOM error: children=${body.children.length}</div>`;
-      return;
-    }
-    state.tree = container.children[0] as HTMLElement;
-    state.content = container.children[2] as HTMLElement; // index 1 is splitter
+  state.doc = doc;
 
-    state.tree.addEventListener("click", handleTreeClick);
-    state.content.addEventListener("click", handleContentClick);
+  try {
+    // Clear body
+    while (body.firstChild) body.removeChild(body.firstChild);
+
+    // Build CSS
+    const style = doc.createElement("style");
+    style.textContent = PANEL_CSS;
+    body.appendChild(style);
+
+    // Build shell structure
+    const container = doc.createElement("div");
+    container.id = "llmwiki-browser";
+
+    const tree = doc.createElement("div");
+    tree.id = "llmwiki-browser-tree";
+    tree.textContent = "LOADING...";
+
+    const splitter = doc.createElement("div");
+    splitter.id = "llmwiki-browser-splitter";
+
+    const content = doc.createElement("div");
+    content.id = "llmwiki-browser-content";
+    const placeholder = doc.createElement("div");
+    placeholder.className = "llmwiki-empty";
+    placeholder.textContent = "Select a file from the tree to preview";
+    content.appendChild(placeholder);
+
+    container.appendChild(tree);
+    container.appendChild(splitter);
+    container.appendChild(content);
+    body.appendChild(container);
+
+    // Store refs
+    state.tree = tree;
+    state.content = content;
+
+    tree.addEventListener("click", handleTreeClick);
+    content.addEventListener("click", handleContentClick);
+    splitter.addEventListener("mousedown", handleSplitterDrag);
 
     buildFileTree();
-
-    const splitter = container.children[1] as HTMLElement;
-    if (splitter) {
-      splitter.addEventListener("mousedown", handleSplitterDrag);
-    }
   } catch (e: any) {
-    if (state.content) {
-      state.content.innerHTML = `<div class="llmwiki-empty" style="color:red">Error: ${e.message || String(e)}</div>`;
-    }
+    body.textContent = `Error: ${e.message || String(e)}`;
   }
-}
-
-function getShellHTML(): string {
-  return `
-    <style>
-      #llmwiki-browser { display: flex; height: 100%; overflow: hidden; }
-      #llmwiki-browser-tree { width: 200px; min-width: 80px; overflow-y: auto;
-        border-right: 1px solid var(--fill-quaternary, #e0e0e0); padding: 8px; }
-      #llmwiki-browser-splitter { width: 4px; cursor: col-resize; flex-shrink: 0; }
-      #llmwiki-browser-splitter:hover { background: var(--fill-quaternary, #e0e0e0); }
-      #llmwiki-browser-content { flex: 1; overflow-y: auto; padding: 12px; }
-      .llmwiki-tree-item { padding: 3px 8px; cursor: pointer; border-radius: 4px;
-        font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-      .llmwiki-tree-item:hover { background: var(--fill-tertiary, #f0f0f0); }
-      .llmwiki-tree-item.active { background: var(--accent-selected, #0060df);
-        color: var(--text-selected, #fff); }
-      .llmwiki-tree-dir { font-weight: 600; padding: 6px 8px 3px; font-size: 12px;
-        text-transform: uppercase; color: var(--text-secondary, #666); }
-      .llmwiki-metadata { background: var(--fill-secondary, #f5f5f5);
-        border-radius: 6px; padding: 12px; margin-bottom: 16px; }
-      .llmwiki-metadata-title { font-size: 1.2em; font-weight: 600; margin-bottom: 8px; }
-      .llmwiki-metadata-row { display: flex; flex-wrap: wrap; gap: 12px;
-        font-size: 0.85em; color: var(--text-secondary, #666); margin-bottom: 6px; }
-      .llmwiki-metadata-tags { margin-top: 6px; }
-      .llmwiki-tag { display: inline-block; background: var(--accent-tertiary, #e0e0ff);
-        color: var(--text-on-accent, #000); border-radius: 3px; padding: 1px 6px;
-        font-size: 0.8em; margin-right: 4px; }
-      a.wikilink { color: var(--accent-selected, #0060df); cursor: pointer;
-        text-decoration: underline; text-decoration-style: dotted; }
-      a.wikilink:hover { text-decoration-style: solid; }
-      .llmwiki-editor { width: 100%; height: 100%; min-height: 300px; border: none;
-        resize: none; font-family: monospace; font-size: 13px; padding: 0;
-        background: transparent; color: inherit; }
-      .llmwiki-toolbar { display: flex; justify-content: flex-end; gap: 8px;
-        margin-bottom: 8px; }
-      .llmwiki-btn { padding: 4px 12px; border-radius: 4px; border: 1px solid
-        var(--fill-quaternary, #ccc); background: var(--fill-secondary, #f5f5f5);
-        cursor: pointer; font-size: 12px; }
-      .llmwiki-btn:hover { background: var(--fill-tertiary, #e0e0e0); }
-      .llmwiki-empty { color: var(--text-secondary, #999); padding: 24px;
-        text-align: center; }
-    </style>
-    <div id="llmwiki-browser">
-      <div id="llmwiki-browser-tree" style="background:#ffe0e0;min-height:100px">LOADING...</div>
-      <div id="llmwiki-browser-splitter"></div>
-      <div id="llmwiki-browser-content">
-        <div class="llmwiki-empty">Select a file from the tree to preview</div>
-      </div>
-    </div>`;
 }
 
 // ─── File Tree ───
 
 function buildFileTree(): void {
-  if (!state.tree) return;
+  if (!state.tree || !state.doc) return;
   const treeData = listTree();
-  let html = "";
+
+  // Clear existing children
+  while (state.tree.firstChild) state.tree.removeChild(state.tree.firstChild);
+
+  const doc = state.doc;
 
   for (const dir of treeData) {
-    html += `<div class="llmwiki-tree-dir">${escapeHTML(dir.name)}</div>`;
+    const dirEl = doc.createElement("div");
+    dirEl.className = "llmwiki-tree-dir";
+    dirEl.textContent = dir.name;
+    state.tree.appendChild(dirEl);
+
     if (dir.children && dir.children.length > 0) {
       for (const file of dir.children) {
-        const active = state.currentNode?.path === file.path ? " active" : "";
-        html += `<div class="llmwiki-tree-item${active}" data-path="${escapeHTML(file.path)}">${escapeHTML(file.name.replace(/\.md$/, ""))}</div>`;
+        const item = doc.createElement("div");
+        item.className = "llmwiki-tree-item";
+        if (state.currentNode?.path === file.path) {
+          item.classList.add("active");
+        }
+        item.dataset.path = file.path;
+        item.textContent = file.name.replace(/\.md$/, "");
+        state.tree.appendChild(item);
       }
     } else {
-      html += `<div class="llmwiki-tree-item" style="color:var(--text-secondary);font-style:italic;cursor:default">(empty)</div>`;
+      const empty = doc.createElement("div");
+      empty.className = "llmwiki-tree-item";
+      empty.style.color = "var(--text-secondary, #666)";
+      empty.style.fontStyle = "italic";
+      empty.style.cursor = "default";
+      empty.textContent = "(empty)";
+      state.tree.appendChild(empty);
     }
   }
-
-  state.tree.innerHTML = html;
 }
 
 function handleTreeClick(e: Event): void {
@@ -235,7 +262,7 @@ function handleSplitterDrag(e: MouseEvent): void {
 function loadPage(relPath: string): void {
   const page = readPage(relPath);
   if (!page) {
-    showContent("<div class='llmwiki-empty'>Failed to read file</div>");
+    showEmpty("Failed to read file");
     return;
   }
   state.currentPage = page;
@@ -247,6 +274,10 @@ function loadPage(relPath: string): void {
 }
 
 function showPreview(page: ParsedPage): void {
+  if (!state.content || !state.doc) return;
+  const doc = state.doc;
+
+  // Reconstruct raw markdown
   const raw = [
     "---",
     ...Object.entries(page.frontmatter).map(([k, v]) => `${k}: "${v}"`),
@@ -255,40 +286,84 @@ function showPreview(page: ParsedPage): void {
     page.body,
   ].join("\n");
 
-  const html = renderMarkdown(raw);
-  const toolbar = `
-    <div class="llmwiki-toolbar">
-      <button class="llmwiki-btn" id="llmwiki-edit-btn">Edit</button>
-    </div>`;
-  setContent(toolbar + html);
+  const renderedHTML = renderMarkdown(raw);
+
+  // Clear content
+  while (state.content.firstChild) state.content.removeChild(state.content.firstChild);
+
+  // Toolbar
+  const toolbar = doc.createElement("div");
+  toolbar.className = "llmwiki-toolbar";
+  const editBtn = doc.createElement("button");
+  editBtn.className = "llmwiki-btn";
+  editBtn.id = "llmwiki-edit-btn";
+  editBtn.textContent = "Edit";
+  toolbar.appendChild(editBtn);
+  state.content.appendChild(toolbar);
+
+  // Rendered content (use innerHTML for markdown — visual only, no lookup needed)
+  const bodyDiv = doc.createElement("div");
+  bodyDiv.innerHTML = renderedHTML;
+  state.content.appendChild(bodyDiv);
+
   state.mode = "preview";
 }
 
 function showEditor(page: ParsedPage): void {
+  if (!state.content || !state.doc) return;
+  const doc = state.doc;
+
   const frontmatterYaml = Object.entries(page.frontmatter)
     .map(([k, v]) => `${k}: "${v.replace(/"/g, '\\"')}"`)
     .join("\n");
   const raw = `---\n${frontmatterYaml}\n---\n\n${page.body}`;
 
-  const html = `
-    <div class="llmwiki-toolbar">
-      <button class="llmwiki-btn" id="llmwiki-cancel-btn">Cancel</button>
-      <button class="llmwiki-btn" id="llmwiki-save-btn" style="background:var(--accent-selected,#0060df);color:#fff">Save</button>
-    </div>
-    <textarea class="llmwiki-editor" id="llmwiki-editor">${escapeHTML(raw)}</textarea>`;
-  setContent(html);
-  state.mode = "edit";
+  // Clear content
+  while (state.content.firstChild) state.content.removeChild(state.content.firstChild);
 
-  // Find textarea via DOM traversal (querySelector/getElementById unreliable in XUL)
-  const editor = state.content?.children[1] as HTMLTextAreaElement;
-  if (editor?.tagName === "TEXTAREA") editor.focus();
+  // Toolbar
+  const toolbar = doc.createElement("div");
+  toolbar.className = "llmwiki-toolbar";
+
+  const cancelBtn = doc.createElement("button");
+  cancelBtn.className = "llmwiki-btn";
+  cancelBtn.id = "llmwiki-cancel-btn";
+  cancelBtn.textContent = "Cancel";
+  toolbar.appendChild(cancelBtn);
+
+  const saveBtn = doc.createElement("button");
+  saveBtn.className = "llmwiki-btn";
+  saveBtn.id = "llmwiki-save-btn";
+  saveBtn.style.background = "var(--accent-selected, #0060df)";
+  saveBtn.style.color = "#fff";
+  saveBtn.textContent = "Save";
+  toolbar.appendChild(saveBtn);
+
+  state.content.appendChild(toolbar);
+
+  // Textarea
+  const textarea = doc.createElement("textarea");
+  textarea.className = "llmwiki-editor";
+  textarea.id = "llmwiki-editor";
+  textarea.value = raw;
+  state.content.appendChild(textarea);
+  textarea.focus();
+
+  state.mode = "edit";
 }
 
 function saveCurrentPage(): void {
-  if (!state.currentPage) return;
-  // Find textarea via DOM traversal (querySelector/getElementById unreliable in XUL)
-  const editor = state.content?.children[1] as HTMLTextAreaElement;
-  if (!editor || editor.tagName !== "TEXTAREA") return;
+  if (!state.currentPage || !state.content) return;
+  // Find textarea among content children
+  let editor: HTMLTextAreaElement | null = null;
+  for (let i = 0; i < state.content.children.length; i++) {
+    const child = state.content.children[i];
+    if (child.tagName === "TEXTAREA") {
+      editor = child as HTMLTextAreaElement;
+      break;
+    }
+  }
+  if (!editor) return;
 
   savePage(state.currentPage.filePath, editor.value);
 
@@ -331,10 +406,11 @@ function handleContentClick(e: Event): void {
 
 // ─── Helpers ───
 
-function setContent(html: string): void {
-  if (state.content) state.content.innerHTML = html;
-}
-
-function showContent(html: string): void {
-  setContent(html);
+function showEmpty(message: string): void {
+  if (!state.content || !state.doc) return;
+  while (state.content.firstChild) state.content.removeChild(state.content.firstChild);
+  const el = state.doc.createElement("div");
+  el.className = "llmwiki-empty";
+  el.textContent = message;
+  state.content.appendChild(el);
 }
