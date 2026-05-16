@@ -163,9 +163,66 @@ function getShellHTML(): string {
     </div>`;
 }
 
-// ─── Stub declarations (implemented in follow-up tasks) ───
+// ─── File Tree ───
 
-function buildFileTree(): void {}
-function handleTreeClick(_e: Event): void {}
+function buildFileTree(): void {
+  if (!state.tree) return;
+  const treeData = listTree();
+  let html = "";
+
+  for (const dir of treeData) {
+    html += `<div class="llmwiki-tree-dir">${escapeHTML(dir.name)}</div>`;
+    if (dir.children && dir.children.length > 0) {
+      for (const file of dir.children) {
+        const active = state.currentNode?.path === file.path ? " active" : "";
+        html += `<div class="llmwiki-tree-item${active}" data-path="${escapeHTML(file.path)}">${escapeHTML(file.name.replace(/\.md$/, ""))}</div>`;
+      }
+    } else {
+      html += `<div class="llmwiki-tree-item" style="color:var(--text-secondary);font-style:italic;cursor:default">(empty)</div>`;
+    }
+  }
+
+  state.tree.innerHTML = html;
+}
+
+function handleTreeClick(e: Event): void {
+  const target = e.target as HTMLElement;
+  if (!target.classList.contains("llmwiki-tree-item")) return;
+  const path = target.dataset.path;
+  if (!path) return;
+
+  state.currentNode = { name: path.split("/").pop() || "", path, type: "file" };
+  state.mode = "preview";
+  loadPage(path);
+  buildFileTree();
+}
+
+// ─── Splitter Drag ───
+
+function handleSplitterDrag(e: MouseEvent): void {
+  e.preventDefault();
+  const tree = state.tree;
+  if (!tree) return;
+  const startX = e.clientX;
+  const startWidth = tree.offsetWidth;
+  const doc = tree.ownerDocument!;
+
+  function onMove(ev: MouseEvent): void {
+    const newWidth = Math.max(80, Math.min(400, startWidth + (ev.clientX - startX)));
+    tree!.style.width = `${newWidth}px`;
+  }
+
+  function onUp(): void {
+    doc.removeEventListener("mousemove", onMove);
+    doc.removeEventListener("mouseup", onUp);
+  }
+
+  doc.addEventListener("mousemove", onMove);
+  doc.addEventListener("mouseup", onUp);
+}
+
+function loadPage(_relPath: string): void {}
+
+// ─── Stub declaration (implemented in follow-up task) ───
+
 function handleContentClick(_e: Event): void {}
-function handleSplitterDrag(_e: MouseEvent): void {}
