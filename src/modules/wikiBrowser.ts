@@ -221,8 +221,114 @@ function handleSplitterDrag(e: MouseEvent): void {
   doc.addEventListener("mouseup", onUp);
 }
 
-function loadPage(_relPath: string): void {}
+// ─── Page Loading ───
 
-// ─── Stub declaration (implemented in follow-up task) ───
+function loadPage(relPath: string): void {
+  const page = readPage(relPath);
+  if (!page) {
+    showContent("<div class='llmwiki-empty'>Failed to read file</div>");
+    return;
+  }
+  state.currentPage = page;
+  if (state.mode === "preview") {
+    showPreview(page);
+  } else {
+    showEditor(page);
+  }
+}
 
-function handleContentClick(_e: Event): void {}
+function showPreview(page: ParsedPage): void {
+  const raw = [
+    "---",
+    ...Object.entries(page.frontmatter).map(([k, v]) => `${k}: "${v}"`),
+    "---",
+    "",
+    page.body,
+  ].join("\n");
+
+  const html = renderMarkdown(raw);
+  const toolbar = `
+    <div class="llmwiki-toolbar">
+      <button class="llmwiki-btn" id="llmwiki-edit-btn">Edit</button>
+    </div>`;
+  setContent(toolbar + html);
+  state.mode = "preview";
+}
+
+function showEditor(page: ParsedPage): void {
+  const frontmatterYaml = Object.entries(page.frontmatter)
+    .map(([k, v]) => `${k}: "${v.replace(/"/g, '\\"')}"`)
+    .join("\n");
+  const raw = `---\n${frontmatterYaml}\n---\n\n${page.body}`;
+
+  const html = `
+    <div class="llmwiki-toolbar">
+      <button class="llmwiki-btn" id="llmwiki-cancel-btn">Cancel</button>
+      <button class="llmwiki-btn" id="llmwiki-save-btn" style="background:var(--accent-selected,#0060df);color:#fff">Save</button>
+    </div>
+    <textarea class="llmwiki-editor" id="llmwiki-editor">${escapeHTML(raw)}</textarea>`;
+  setContent(html);
+  state.mode = "edit";
+
+  const ownerDoc = state.content?.ownerDocument;
+  if (ownerDoc) {
+    const editor = ownerDoc.getElementById("llmwiki-editor") as HTMLTextAreaElement;
+    if (editor) editor.focus();
+  }
+}
+
+function saveCurrentPage(): void {
+  if (!state.currentPage) return;
+  const ownerDoc = state.content?.ownerDocument;
+  if (!ownerDoc) return;
+  const editor = ownerDoc.getElementById("llmwiki-editor") as HTMLTextAreaElement;
+  if (!editor) return;
+
+  savePage(state.currentPage.filePath, editor.value);
+
+  state.mode = "preview";
+  loadPage(state.currentPage.filePath);
+}
+
+// ─── Content Click Handler ───
+
+function handleContentClick(e: Event): void {
+  const target = e.target as HTMLElement;
+
+  if (target.id === "llmwiki-edit-btn") {
+    state.mode = "edit";
+    if (state.currentPage) showEditor(state.currentPage);
+    return;
+  }
+  if (target.id === "llmwiki-cancel-btn") {
+    state.mode = "preview";
+    if (state.currentPage) showPreview(state.currentPage);
+    return;
+  }
+  if (target.id === "llmwiki-save-btn") {
+    saveCurrentPage();
+    return;
+  }
+
+  // Wikilink navigation
+  if (target.classList.contains("wikilink")) {
+    const targetPath = target.dataset.target;
+    if (targetPath) {
+      const path = targetPath.endsWith(".md") ? targetPath : `${targetPath}.md`;
+      state.currentNode = { name: path.split("/").pop() || "", path, type: "file" };
+      state.mode = "preview";
+      loadPage(path);
+      buildFileTree();
+    }
+  }
+}
+
+// ─── Helpers ───
+
+function setContent(html: string): void {
+  if (state.content) state.content.innerHTML = html;
+}
+
+function showContent(html: string): void {
+  setContent(html);
+}
