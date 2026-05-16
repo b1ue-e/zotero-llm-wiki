@@ -78,10 +78,11 @@ function listDir(path: string): string[] {
   const enumerator = dir.directoryEntries;
   const result: string[] = [];
   while (enumerator.hasMoreElements()) {
-    // getNext() returns an nsIFile wrapper — access .path directly
-    // without QueryInterface to avoid sandbox binding issues
-    const file = enumerator.getNext();
-    result.push(file.path);
+    const raw = enumerator.getNext();
+    const file = raw.QueryInterface(Components.interfaces.nsIFile);
+    if (file && file.path) {
+      result.push(file.path);
+    }
   }
   enumerator.close();
   return result;
