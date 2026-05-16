@@ -58,14 +58,15 @@ function readFile(path: string): string | null {
   const stream = Components.classes["@mozilla.org/network/file-input-stream;1"]
     .createInstance(Components.interfaces.nsIFileInputStream) as any;
   stream.init(file, 0x01, 0o644, 0);
-  const available = stream.available();
   // @ts-expect-error - Mozilla XPCOM
-  const data = Components.classes["@mozilla.org/binaryinputstream;1"]
-    .createInstance(Components.interfaces.nsIBinaryInputStream) as any;
-  data.setInputStream(stream);
-  const text = data.readBytes(available);
+  const converter = Components.classes["@mozilla.org/intl/converter-input-stream;1"]
+    .createInstance(Components.interfaces.nsIConverterInputStream) as any;
+  converter.init(stream, "UTF-8", 0, 0);
+  const str: { value: string } = { value: "" };
+  converter.readString(-1, str);
+  converter.close();
   stream.close();
-  return text;
+  return str.value;
 }
 
 function listDir(path: string): string[] {
