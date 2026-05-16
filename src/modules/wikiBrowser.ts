@@ -168,6 +168,7 @@ function getShellHTML(): string {
 function buildFileTree(): void {
   if (!state.tree) return;
   const treeData = listTree();
+  Zotero.debug(`[llmwiki] buildFileTree: ${treeData.length} dirs, papers=${treeData[0]?.children?.length || 0} files`);
   let html = "";
 
   for (const dir of treeData) {

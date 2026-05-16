@@ -74,13 +74,23 @@ function listDir(path: string): string[] {
   const dir = Components.classes["@mozilla.org/file/local;1"]
     .createInstance(Components.interfaces.nsIFile) as any;
   dir.initWithPath(path);
-  if (!dir.exists() || !dir.isDirectory()) return [];
+  if (!dir.exists()) {
+    Zotero.debug(`[llmwiki] listDir: path does not exist: ${path}`);
+    return [];
+  }
+  if (!dir.isDirectory()) {
+    Zotero.debug(`[llmwiki] listDir: path is not a directory: ${path}`);
+    return [];
+  }
   const enumerator = dir.directoryEntries;
   const result: string[] = [];
   while (enumerator.hasMoreElements()) {
-    const file = enumerator.getNext().QueryInterface(Components.interfaces.nsIFile);
+    // getNext() returns an nsIFile wrapper — access .path directly
+    // without QueryInterface to avoid sandbox binding issues
+    const file = enumerator.getNext();
     result.push(file.path);
   }
+  enumerator.close();
   return result;
 }
 
