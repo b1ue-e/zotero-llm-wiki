@@ -17,6 +17,7 @@ interface BrowserState {
   tree: HTMLElement | null;
   content: HTMLElement | null;
   doc: Document | null;
+  editor: HTMLTextAreaElement | null;
 }
 
 const state: BrowserState = {
@@ -26,6 +27,7 @@ const state: BrowserState = {
   tree: null,
   content: null,
   doc: null,
+  editor: null,
 };
 
 // ─── Markdown Rendering ───
@@ -351,29 +353,20 @@ function showEditor(page: ParsedPage): void {
   textarea.value = raw;
   state.content.appendChild(textarea);
   textarea.focus();
+  state.editor = textarea as unknown as HTMLTextAreaElement;
 
   state.mode = "edit";
 }
 
 function saveCurrentPage(): void {
-  if (!state.currentPage || !state.content) return;
-  // Find textarea among content children
-  let editor: HTMLTextAreaElement | null = null;
-  for (let i = 0; i < state.content.children.length; i++) {
-    const child = state.content.children[i];
-    if (child.tagName === "TEXTAREA") {
-      editor = child as HTMLTextAreaElement;
-      break;
-    }
-  }
-  if (!editor) return;
+  if (!state.currentPage || !state.editor) return;
 
-  const newRaw = editor.value;
+  const newRaw = state.editor.value;
 
   // Persist to disk
   savePage(state.currentPage.filePath, newRaw);
 
-  // Parse edited content and show preview directly (avoid file re-read round-trip)
+  // Parse edited content and show preview directly
   const { frontmatter, body } = parseFrontmatter(newRaw);
   state.currentPage = {
     frontmatter,
@@ -381,6 +374,7 @@ function saveCurrentPage(): void {
     filePath: state.currentPage.filePath,
   };
   state.mode = "preview";
+  state.editor = null;
   showPreview(state.currentPage);
 }
 
