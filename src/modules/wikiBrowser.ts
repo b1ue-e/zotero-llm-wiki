@@ -390,6 +390,7 @@ function handleContentClick(e: Event): void {
   }
   if (target.id === "llmwiki-cancel-btn") {
     state.mode = "preview";
+    state.editor = null;
     if (state.currentPage) showPreview(state.currentPage);
     return;
   }
