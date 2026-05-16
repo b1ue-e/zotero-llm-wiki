@@ -57,3 +57,74 @@ export function parseFrontmatter(raw: string): { frontmatter: Record<string, str
 
   return { frontmatter, body };
 }
+
+// ─── Directory Tree ───
+
+export function listTree(): FileNode[] {
+  const baseDir = getWikiBaseDir();
+  const categories = ["papers", "concepts", "entities"];
+  const tree: FileNode[] = [];
+
+  for (const cat of categories) {
+    const catDir = `${baseDir}/${cat}`;
+    const node: FileNode = {
+      name: cat,
+      path: cat,
+      type: "directory",
+      children: [],
+    };
+
+    const files = listDir(catDir);
+    for (const filePath of files) {
+      if (!filePath.endsWith(".md")) continue;
+      const name = filePath.split("/").pop() || filePath;
+      node.children!.push({
+        name,
+        path: `${cat}/${name}`,
+        type: "file",
+      });
+    }
+
+    // Sort alphabetically
+    node.children!.sort((a, b) => a.name.localeCompare(b.name));
+    tree.push(node);
+  }
+
+  return tree;
+}
+
+// ─── Index Parser ───
+
+export function parseIndex(): IndexEntry[] {
+  const indexPath = `${getWikiBaseDir()}/index.md`;
+  const content = readFile(indexPath);
+  if (!content) return [];
+
+  const entries: IndexEntry[] = [];
+  const lines = content.split("\n");
+  let inPapers = false;
+
+  for (const line of lines) {
+    if (line.startsWith("## Papers")) {
+      inPapers = true;
+      continue;
+    }
+    if (inPapers && line.startsWith("## ")) break;
+    if (!inPapers || !line.startsWith("- ")) continue;
+
+    // Parse: - (2024) [[papers/slug|Title]] | summary
+    const match = line.match(
+      /^- \(([^)]*)\) \[\[papers\/([^|]+)\|([^\]]+)\]\] \| (.+)$/,
+    );
+    if (match) {
+      entries.push({
+        year: match[1] || "?",
+        slug: match[2],
+        title: match[3],
+        summary: match[4],
+      });
+    }
+  }
+
+  return entries;
+}
