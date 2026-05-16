@@ -128,3 +128,68 @@ export function parseIndex(): IndexEntry[] {
 
   return entries;
 }
+
+// ─── Page Read/Write ───
+
+export function readPage(relPath: string): ParsedPage | null {
+  const fullPath = `${getWikiBaseDir()}/${relPath}`;
+  const raw = readFile(fullPath);
+  if (!raw) return null;
+  const { frontmatter, body } = parseFrontmatter(raw);
+  return { frontmatter, body, filePath: relPath };
+}
+
+export function savePage(relPath: string, content: string): void {
+  const fullPath = `${getWikiBaseDir()}/${relPath}`;
+  writeFile(fullPath, content);
+
+  // Update index.md `updated` date
+  const now = new Date().toISOString().slice(0, 10);
+  const indexPath = `${getWikiBaseDir()}/index.md`;
+  const indexContent = readFile(indexPath);
+  if (indexContent) {
+    const updated = indexContent
+      .replace(/^updated: .*$/m, `updated: ${now}`)
+      .replace(/^Last updated: .*$/m, `Last updated: ${now}`);
+    writeFile(indexPath, updated);
+  }
+}
+
+// ─── Full-Text Search ───
+
+export function searchPages(query: string): SearchResult[] {
+  const results: SearchResult[] = [];
+  const q = query.toLowerCase();
+  const tree = listTree();
+
+  for (const dir of tree) {
+    if (!dir.children) continue;
+    for (const file of dir.children) {
+      const page = readPage(file.path);
+      if (!page) continue;
+
+      const title = page.frontmatter["title"] || file.name;
+      const bodyLower = page.body.toLowerCase();
+      const titleLower = title.toLowerCase();
+
+      if (titleLower.includes(q) || bodyLower.includes(q)) {
+        // Extract a snippet around the first match
+        const matchIdx = bodyLower.indexOf(q);
+        const start = Math.max(0, matchIdx - 50);
+        const end = Math.min(page.body.length, matchIdx + q.length + 100);
+        const snippet = (start > 0 ? "…" : "") +
+          page.body.slice(start, end).replace(/\n/g, " ") +
+          (end < page.body.length ? "…" : "");
+
+        results.push({
+          slug: file.path.replace(/\.md$/, ""),
+          title,
+          filePath: file.path,
+          snippet: snippet || title,
+        });
+      }
+    }
+  }
+
+  return results;
+}
