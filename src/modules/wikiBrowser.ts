@@ -91,12 +91,15 @@ function escapeHTML(s: string): string {
 // ─── CSS ───
 
 const PANEL_CSS = `
-  #llmwiki-browser { display: flex; height: 100%; overflow: hidden; }
-  #llmwiki-browser-tree { width: 200px; min-width: 80px; overflow-y: auto;
+  #llmwiki-browser { display: flex; height: 100%; overflow: hidden; min-width: 0; }
+  #llmwiki-browser-tree { width: 180px; min-width: 60px; max-width: 50%;
+    overflow-y: auto; overflow-x: hidden;
     border-right: 1px solid var(--fill-quaternary, #e0e0e0); padding: 8px; }
   #llmwiki-browser-splitter { width: 4px; cursor: col-resize; flex-shrink: 0; }
   #llmwiki-browser-splitter:hover { background: var(--fill-quaternary, #e0e0e0); }
-  #llmwiki-browser-content { flex: 1; overflow-y: auto; padding: 12px; }
+  #llmwiki-browser-content { flex: 1; display: flex; flex-direction: column;
+    overflow-y: auto; overflow-x: hidden;
+    padding: 12px; min-width: 0; word-wrap: break-word; }
   .llmwiki-tree-item { padding: 3px 8px; cursor: pointer; border-radius: 4px;
     font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .llmwiki-tree-item:hover { background: var(--fill-tertiary, #f0f0f0); }
@@ -116,8 +119,8 @@ const PANEL_CSS = `
   a.wikilink { color: var(--accent-selected, #0060df); cursor: pointer;
     text-decoration: underline; text-decoration-style: dotted; }
   a.wikilink:hover { text-decoration-style: solid; }
-  .llmwiki-editor { width: 100%; height: 100%; min-height: 300px; border: none;
-    resize: none; font-family: monospace; font-size: 13px; padding: 0;
+  .llmwiki-editor { flex: 1; width: 100%; min-height: 200px; border: none;
+    resize: none; font-family: monospace; font-size: 13px; padding: 8px;
     background: transparent; color: inherit; }
   .llmwiki-toolbar { display: flex; justify-content: flex-end; gap: 8px;
     margin-bottom: 8px; }
