@@ -94,6 +94,8 @@ function escapeHTML(s: string): string {
 // ─── Public Entry Point ───
 
 export function renderWikiBrowser({ body }: { body: HTMLElement; doc: Document }): void {
+  Zotero.debug(`[llmwiki] renderWikiBrowser start, body=${!!body}`);
+  if (!body) return;
   body.innerHTML = getShellHTML();
   state.tree = body.querySelector("#llmwiki-browser-tree") as HTMLElement;
   state.content = body.querySelector("#llmwiki-browser-content") as HTMLElement;

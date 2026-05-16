@@ -19,7 +19,7 @@ async function onStartup() {
   });
 
   // Register Wiki Browser panel
-  Zotero.ItemPaneManager.registerSection({
+  const registered = Zotero.ItemPaneManager.registerSection({
     paneID: `${addon.data.config.addonRef}-wikiBrowser`,
     pluginID: addon.data.config.addonID,
     sidenav: {
@@ -31,9 +31,12 @@ async function onStartup() {
       l10nID: getLocaleID("section-wikibrowser-head-text"),
     },
     onRender: ({ body, doc }) => {
+      Zotero.debug("[llmwiki] onRender called for wikiBrowser");
       renderWikiBrowser({ body, doc });
+      Zotero.debug("[llmwiki] renderWikiBrowser completed");
     },
   });
+  Zotero.debug(`[llmwiki] registerSection returned: ${registered}`);
 
   // Register item notifier
   const notifierCallback = {
