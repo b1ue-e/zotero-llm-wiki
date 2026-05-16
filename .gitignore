@@ -22,7 +22,8 @@ logs
 /addon.ftl
 
 # Docs / planning
-docs/
+docs/*
+!docs/superpowers/
 
 # IDE
 .vscode/
