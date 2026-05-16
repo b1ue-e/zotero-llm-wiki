@@ -135,6 +135,11 @@ const PANEL_CSS = `
   .llmwiki-btn:hover { background: var(--fill-tertiary, #e0e0e0); }
   .llmwiki-empty { color: var(--text-secondary, #999); padding: 24px;
     text-align: center; }
+  .llmwiki-toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: var(--fill-secondary, #333); color: var(--text-primary, #fff);
+    padding: 8px 20px; border-radius: 6px; font-size: 13px;
+    opacity: 0; transition: opacity 0.2s; pointer-events: none; z-index: 9999; }
+  .llmwiki-toast.show { opacity: 1; }
 `;
 
 // ─── Public Entry Point ───
@@ -169,6 +174,7 @@ export function renderWikiBrowser({ body, doc }: { body: HTMLElement; doc: Docum
     refreshBtn.addEventListener("click", (ev) => {
       ev.stopPropagation();
       buildFileTree();
+      showToast("File tree refreshed");
     });
     treeToolbar.appendChild(refreshBtn);
     treePanel.appendChild(treeToolbar);
@@ -397,6 +403,7 @@ function saveCurrentPage(): void {
   state.mode = "preview";
   state.editor = null;
   showPreview(state.currentPage);
+  showToast("Saved");
 }
 
 // ─── Content Click Handler ───
@@ -413,6 +420,7 @@ function handleContentClick(e: Event): void {
     state.mode = "preview";
     state.editor = null;
     if (state.currentPage) showPreview(state.currentPage);
+    showToast("Edit cancelled");
     return;
   }
   if (target.id === "llmwiki-save-btn") {
@@ -442,4 +450,21 @@ function showEmpty(message: string): void {
   el.className = "llmwiki-empty";
   el.textContent = message;
   state.content.appendChild(el);
+}
+
+function showToast(message: string): void {
+  if (!state.doc) return;
+  const doc = state.doc;
+  if (!doc.body) return;
+  const toast = doc.createElement("div");
+  toast.className = "llmwiki-toast";
+  toast.textContent = message;
+  doc.body.appendChild(toast);
+  // Force reflow then fade in
+  toast.getClientRects();
+  toast.classList.add("show");
+  setTimeout(() => {
+    toast.classList.remove("show");
+    setTimeout(() => toast.remove(), 300);
+  }, 1500);
 }
