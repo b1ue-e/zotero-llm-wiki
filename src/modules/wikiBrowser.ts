@@ -94,9 +94,12 @@ function escapeHTML(s: string): string {
 
 const PANEL_CSS = `
   #llmwiki-browser { display: flex; height: 100%; overflow: hidden; min-width: 0; }
-  #llmwiki-browser-tree { width: 180px; min-width: 60px; max-width: 50%;
-    overflow-y: auto; overflow-x: hidden;
-    border-right: 1px solid var(--fill-quaternary, #e0e0e0); padding: 8px; }
+  #llmwiki-browser-tree-panel { width: 180px; min-width: 60px; max-width: 50%;
+    display: flex; flex-direction: column; overflow: hidden;
+    border-right: 1px solid var(--fill-quaternary, #e0e0e0); }
+  .llmwiki-tree-toolbar { display: flex; justify-content: flex-end;
+    padding: 4px; border-bottom: 1px solid var(--fill-quaternary, #e0e0e0); }
+  #llmwiki-browser-tree { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 8px; }
   #llmwiki-browser-splitter { width: 4px; cursor: col-resize; flex-shrink: 0; }
   #llmwiki-browser-splitter:hover { background: var(--fill-quaternary, #e0e0e0); }
   #llmwiki-browser-content { flex: 1; display: flex; flex-direction: column;
@@ -153,9 +156,27 @@ export function renderWikiBrowser({ body, doc }: { body: HTMLElement; doc: Docum
     const container = doc.createElement("div");
     container.id = "llmwiki-browser";
 
+    // Tree panel wrapper (toolbar + tree)
+    const treePanel = doc.createElement("div");
+    treePanel.id = "llmwiki-browser-tree-panel";
+
+    const treeToolbar = doc.createElement("div");
+    treeToolbar.className = "llmwiki-tree-toolbar";
+    const refreshBtn = doc.createElement("button");
+    refreshBtn.className = "llmwiki-btn llmwiki-refresh-btn";
+    refreshBtn.textContent = "↻";  // ↻ refresh symbol
+    refreshBtn.title = "Refresh file tree";
+    refreshBtn.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      buildFileTree();
+    });
+    treeToolbar.appendChild(refreshBtn);
+    treePanel.appendChild(treeToolbar);
+
     const tree = doc.createElement("div");
     tree.id = "llmwiki-browser-tree";
     tree.textContent = "LOADING...";
+    treePanel.appendChild(tree);
 
     const splitter = doc.createElement("div");
     splitter.id = "llmwiki-browser-splitter";
@@ -167,7 +188,7 @@ export function renderWikiBrowser({ body, doc }: { body: HTMLElement; doc: Docum
     placeholder.textContent = "Select a file from the tree to preview";
     content.appendChild(placeholder);
 
-    container.appendChild(tree);
+    container.appendChild(treePanel);
     container.appendChild(splitter);
     container.appendChild(content);
     body.appendChild(container);
