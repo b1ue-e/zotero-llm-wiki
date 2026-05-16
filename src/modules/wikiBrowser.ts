@@ -16,6 +16,7 @@ interface BrowserState {
   mode: "preview" | "edit";
   tree: HTMLElement | null;
   content: HTMLElement | null;
+  root: HTMLElement | null;
   doc: Document | null;
   editor: HTMLTextAreaElement | null;
 }
@@ -26,6 +27,7 @@ const state: BrowserState = {
   mode: "preview",
   tree: null,
   content: null,
+  root: null,
   doc: null,
   editor: null,
 };
@@ -135,9 +137,10 @@ const PANEL_CSS = `
   .llmwiki-btn:hover { background: var(--fill-tertiary, #e0e0e0); }
   .llmwiki-empty { color: var(--text-secondary, #999); padding: 24px;
     text-align: center; }
-  .llmwiki-toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+  #llmwiki-browser { position: relative; }
+  .llmwiki-toast { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%);
     background: var(--fill-secondary, #333); color: var(--text-primary, #fff);
-    padding: 8px 20px; border-radius: 6px; font-size: 13px;
+    padding: 8px 20px; border-radius: 6px; font-size: 13px; white-space: nowrap;
     opacity: 0; transition: opacity 0.2s; pointer-events: none; z-index: 9999; }
   .llmwiki-toast.show { opacity: 1; }
 `;
@@ -202,6 +205,7 @@ export function renderWikiBrowser({ body, doc }: { body: HTMLElement; doc: Docum
     // Store refs
     state.tree = tree;
     state.content = content;
+    state.root = container;
 
     tree.addEventListener("click", handleTreeClick);
     content.addEventListener("click", handleContentClick);
@@ -453,13 +457,11 @@ function showEmpty(message: string): void {
 }
 
 function showToast(message: string): void {
-  if (!state.doc) return;
-  const doc = state.doc;
-  if (!doc.body) return;
-  const toast = doc.createElement("div");
+  if (!state.root || !state.doc) return;
+  const toast = state.doc.createElement("div");
   toast.className = "llmwiki-toast";
   toast.textContent = message;
-  doc.body.appendChild(toast);
+  state.root.appendChild(toast);
   // Force reflow then fade in
   toast.getClientRects();
   toast.classList.add("show");
