@@ -9,7 +9,7 @@ import {
 } from "./wikiReader";
 import { runIngest } from "./ingest";
 import { getPref } from "../utils/prefs";
-import { getWikiBaseDir } from "../utils/xpcom";
+import { getWikiBaseDir, writeFile, makeDir } from "../utils/xpcom";
 import { searchRaw, readRaw } from "./rawStorage";
 import { appendToSection } from "./wikiStorage";
 
@@ -632,6 +632,13 @@ async function handleSend(): Promise<void> {
     return;
   }
 
+  if (text === "/save") {
+    saveConversation();
+    state.busy = false;
+    updateSendButton();
+    return;
+  }
+
   state.busy = true;
   updateSendButton();
 
@@ -734,6 +741,38 @@ function compactConversation(): void {
   }
 }
 
+function saveConversation(): void {
+  if (!state.chatEl || !state.doc) return;
+  const now = new Date();
+  const ts = now.toISOString().replace(/[:.]/g, "-").slice(0, 19);
+  const convDir = `${getWikiBaseDir()}/../conversations`;
+  makeDir(convDir);
+  const filePath = `${convDir}/${ts}.md`;
+
+  let md = `# Conversation ${ts}\n\n`;
+  for (const msg of state.messages) {
+    if (msg.role === "system") {
+      md += `> *System prompt not shown*\n\n`;
+    } else if (msg.role === "user") {
+      md += `**User:** ${msg.content}\n\n`;
+    } else if (msg.role === "assistant") {
+      const preview = msg.content.length > 2000
+        ? msg.content.slice(0, 2000) + "..."
+        : msg.content;
+      md += `**Agent:** ${preview}\n\n`;
+    } else if (msg.role === "tool") {
+      md += `> Tool result (${msg.tool_call_id || "?"}): ${msg.content.slice(0, 500)}\n\n`;
+    }
+  }
+
+  writeFile(filePath, md);
+
+  const note = state.doc.createElement("div");
+  note.className = "llmwiki-msg llmwiki-msg-system";
+  note.textContent = `Conversation saved to ${filePath}`;
+  state.chatEl.appendChild(note);
+}
+
 function updateSendButton(): void {
   if (state.sendBtn) state.sendBtn.disabled = state.busy;
 }
@@ -750,11 +789,22 @@ async function executeToolCall(tc: ToolCall): Promise<string> {
     switch (name) {
       case "search_wiki": {
         const hits = searchPages(args.query || "");
-        result = hits.length === 0
-          ? `No results found for "${args.query}".`
-          : hits.map((h: SearchResult) =>
+        if (hits.length === 0) {
+          // Auto-fallback to raw layer
+          const rawHits = searchRaw(args.query || "");
+          result = rawHits.length === 0
+            ? `No results found for "${args.query}" in wiki or raw layer.`
+            : `No wiki results, but raw layer found:\n${rawHits.map((h: SearchResult) => `- **${h.title}** (${h.slug})\n  ${h.snippet}`).join("\n\n")}`;
+        } else {
+          result = hits.map((h: SearchResult) =>
               `- **${h.title}** (${h.filePath})\n  ${h.snippet}`
             ).join("\n\n");
+          // Also append raw results if available
+          const rawHits = searchRaw(args.query || "");
+          if (rawHits.length > 0) {
+            result += `\n\nRaw layer also found:\n${rawHits.map((h: SearchResult) => `- **${h.title}** (${h.slug})\n  ${h.snippet}`).join("\n\n")}`;
+          }
+        }
         break;
       }
       case "read_page": {
