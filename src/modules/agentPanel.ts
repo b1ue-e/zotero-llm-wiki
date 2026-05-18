@@ -58,9 +58,6 @@ const state: AgentState = {
   busy: false,
 };
 
-// Module-level flag: set when raw layer results are used in current conversation turn
-let rawDataUsed = false;
-
 // ─── CSS ───
 
 const AGENT_CSS = `
@@ -635,7 +632,6 @@ async function handleSend(): Promise<void> {
     let response = await callLLM(state.messages);
     let round = 0;
     let searchCount = 0;
-    rawDataUsed = false;
     const MAX_SEARCHES = 5;
 
     while (response.tool_calls && response.tool_calls.length > 0 && round < MAX_TOOL_ROUNDS) {
@@ -668,31 +664,6 @@ async function handleSend(): Promise<void> {
       }
 
       response = await callLLM(state.messages);
-    }
-
-    // If raw layer was used, force wiki enrichment before the final answer
-    if (rawDataUsed && response.content) {
-      state.messages.push({
-        role: "user",
-        content: "[System instruction] You used raw layer data to answer. The wiki is MISSING this information. First call update_wiki_section with the paper slug and most relevant section to add the missing info. Then AFTER updating, answer the user's original question.",
-      });
-      const enrichResponse = await callLLM(state.messages);
-      if (enrichResponse.tool_calls && enrichResponse.tool_calls.length > 0) {
-        // Save the answer the LLM already gave alongside the tool call
-        const savedAnswer = enrichResponse.content;
-        // Execute the tool call(s) but don't feed back to LLM — just silently update wiki
-        for (const tc of enrichResponse.tool_calls) {
-          if (tc.function.name === "update_wiki_section") {
-            await executeToolCall(tc);
-          }
-        }
-        // Use the saved answer as the response — no extra LLM calls
-        if (savedAnswer) {
-          response = { content: savedAnswer, tool_calls: null, rawMessage: enrichResponse.rawMessage };
-        }
-      } else if (enrichResponse.content) {
-        response = enrichResponse;
-      }
     }
 
     if (thinkingEl) thinkingEl.remove();
@@ -803,16 +774,12 @@ async function executeToolCall(tc: ToolCall): Promise<string> {
     switch (name) {
       case "search_wiki": {
         const hits = searchPages(args.query || "");
-        const rawReminder = "\n\n---\nIf the raw content above has details missing from the wiki, call update_wiki_section NOW to enrich it before answering.";
         if (hits.length === 0) {
           // Auto-fallback to raw layer
           const rawHits = searchRaw(args.query || "");
-          if (rawHits.length > 0) {
-            rawDataUsed = true;
-            result = `No wiki results, but raw layer found:\n${rawHits.map((h: SearchResult) => `- **${h.title}** (${h.slug})\n  ${h.snippet}`).join("\n\n")}${rawReminder}`;
-          } else {
-            result = `No results found for "${args.query}" in wiki or raw layer.`;
-          }
+          result = rawHits.length === 0
+            ? `No results found for "${args.query}" in wiki or raw layer.`
+            : `No wiki results, but raw layer found:\n${rawHits.map((h: SearchResult) => `- **${h.title}** (${h.slug})\n  ${h.snippet}`).join("\n\n")}`;
         } else {
           result = hits.map((h: SearchResult) =>
               `- **${h.title}** (${h.filePath})\n  ${h.snippet}`
@@ -820,8 +787,7 @@ async function executeToolCall(tc: ToolCall): Promise<string> {
           // Also append raw results if available
           const rawHits = searchRaw(args.query || "");
           if (rawHits.length > 0) {
-            rawDataUsed = true;
-            result += `\n\nRaw layer also found:\n${rawHits.map((h: SearchResult) => `- **${h.title}** (${h.slug})\n  ${h.snippet}`).join("\n\n")}${rawReminder}`;
+            result += `\n\nRaw layer also found:\n${rawHits.map((h: SearchResult) => `- **${h.title}** (${h.slug})\n  ${h.snippet}`).join("\n\n")}`;
           }
         }
         break;
