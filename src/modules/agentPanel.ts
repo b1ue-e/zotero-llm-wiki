@@ -674,7 +674,7 @@ async function handleSend(): Promise<void> {
     if (rawDataUsed && response.content) {
       state.messages.push({
         role: "user",
-        content: "[System instruction] You used raw layer data to answer. The wiki is MISSING this information. Before your final answer, call update_wiki_section with the paper slug and the most relevant section name. If you don't know the exact slug, use the one from the search results.",
+        content: "[System instruction] You used raw layer data to answer. The wiki is MISSING this information. First call update_wiki_section with the paper slug and most relevant section to add the missing info. Then AFTER updating, answer the user's original question.",
       });
       const enrichResponse = await callLLM(state.messages);
       if (enrichResponse.tool_calls && enrichResponse.tool_calls.length > 0) {
@@ -695,7 +695,13 @@ async function handleSend(): Promise<void> {
           }
           followup = await callLLM(state.messages);
         }
-        if (followup.content) response = followup;
+        if (followup.content) {
+          // After wiki update, ask for the answer to original question
+          state.messages.push({ role: "assistant", content: followup.content, ...followup.rawMessage } as ChatMessage);
+          state.messages.push({ role: "user", content: "Now answer the user's original question based on all the information you have." });
+          const finalAnswer = await callLLM(state.messages);
+          if (finalAnswer.content) response = finalAnswer;
+        }
       } else if (enrichResponse.content) {
         response = enrichResponse;
       }
