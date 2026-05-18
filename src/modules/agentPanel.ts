@@ -65,8 +65,7 @@ const AGENT_CSS = `
     border-top: 1px solid var(--fill-quaternary, #e0e0e0); }
   #llmwiki-agent-input { flex: 1; min-height: 36px; max-height: 120px; border: 1px solid
     var(--fill-quaternary, #ccc); border-radius: 6px; padding: 8px; font-size: 13px;
-    resize: none; background: var(--fill-primary, #fff);
-    color: var(--text-primary, #000); font-family: inherit; }
+    resize: none; background: #f5f5f5; color: #222; font-family: inherit; }
   #llmwiki-agent-send { padding: 6px 16px; border-radius: 6px; border: none;
     background: var(--accent-selected, #0060df); color: #fff; cursor: pointer;
     font-size: 13px; white-space: nowrap; }
@@ -77,7 +76,7 @@ const AGENT_CSS = `
   .llmwiki-msg-user { align-self: flex-end;
     background: var(--accent-selected, #0060df); color: #fff; }
   .llmwiki-msg-assistant { align-self: flex-start;
-    background: var(--fill-secondary, #f0f0f0); color: inherit; }
+    background: #dcf8c6; color: #222; }
   .llmwiki-msg-system { align-self: center; font-size: 12px;
     color: var(--text-secondary, #999); padding: 4px 8px; max-width: 100%; }
   .llmwiki-tool-card { background: var(--fill-tertiary, #f5f5f5); border-radius: 6px;
@@ -195,6 +194,7 @@ function scrollToBottom(): void {
 interface LLMResponse {
   content: string | null;
   tool_calls: ToolCall[] | null;
+  rawMessage: Record<string, unknown> | null;
 }
 
 function callLLM(messages: ChatMessage[]): Promise<LLMResponse> {
@@ -240,6 +240,7 @@ function callLLM(messages: ChatMessage[]): Promise<LLMResponse> {
         resolve({
           content: choice?.content || null,
           tool_calls: choice?.tool_calls || null,
+          rawMessage: choice || null,
         });
       } catch (e: any) {
         reject(new Error(`Failed to parse response: ${e.message}`));
@@ -354,14 +355,15 @@ async function handleSend(): Promise<void> {
     if (thinkingEl) thinkingEl.remove();
 
     if (response.tool_calls && response.tool_calls.length > 0) {
-      // Add assistant message with tool calls
+      // Add assistant message preserving all API fields (e.g., reasoning_content)
       state.messages.push({
         role: "assistant",
         content: response.content || "",
         tool_calls: response.tool_calls,
-      });
+        ...response.rawMessage,
+      } as ChatMessage);
 
-      // Execute tools (stub — implemented in Task 3)
+      // Execute tools
       for (const tc of response.tool_calls) {
         const result = await executeToolCall(tc);
         state.messages.push({
@@ -378,11 +380,19 @@ async function handleSend(): Promise<void> {
       if (thinkingEl2) thinkingEl2.remove();
 
       if (finalResponse.content) {
-        state.messages.push({ role: "assistant", content: finalResponse.content });
+        state.messages.push({
+          role: "assistant",
+          content: finalResponse.content,
+          ...finalResponse.rawMessage,
+        } as ChatMessage);
         addAssistantMessage(finalResponse.content);
       }
     } else if (response.content) {
-      state.messages.push({ role: "assistant", content: response.content });
+      state.messages.push({
+        role: "assistant",
+        content: response.content,
+        ...response.rawMessage,
+      } as ChatMessage);
       addAssistantMessage(response.content);
     }
   } catch (e: any) {
