@@ -118,11 +118,12 @@ function updateRawIndex(entry: RawIndexEntry): void {
 export function searchRaw(query: string): SearchResult[] {
   const results: SearchResult[] = [];
   const q = query.toLowerCase();
+  const queryWords = q.split(/\s+/).filter((w: string) => w.length > 1);
   const index = readIndex();
 
-  // Pre-filter by index (title match)
+  // Pre-filter by index (title word match)
   const candidates = index.filter(
-    (e: RawIndexEntry) => e.title.toLowerCase().includes(q)
+    (e: RawIndexEntry) => queryWords.some((w: string) => e.title.toLowerCase().includes(w))
   );
 
   // Also scan all raw files for fulltext/abstract matches
@@ -137,12 +138,22 @@ export function searchRaw(query: string): SearchResult[] {
     const fulltextLower = (raw.fulltext || "").toLowerCase();
     const titleLower = raw.title.toLowerCase();
 
-    if (titleLower.includes(q) || abstractLower.includes(q) || fulltextLower.includes(q)) {
+    // Match if ANY query word appears in title, abstract, or fulltext
+    const matchTitle = queryWords.some((w: string) => titleLower.includes(w));
+    const matchAbstract = queryWords.some((w: string) => abstractLower.includes(w));
+    const matchFulltext = queryWords.some((w: string) => fulltextLower.includes(w));
+
+    if (matchTitle || matchAbstract || matchFulltext) {
+      // Find the best matching word position for a snippet
       let source = raw.abstract || "";
-      if (fulltextLower.includes(q)) source = raw.fulltext || source;
-      const matchIdx = source.toLowerCase().indexOf(q);
-      const start = Math.max(0, matchIdx - 60);
-      const end = Math.min(source.length, matchIdx + q.length + 120);
+      let matchWord = queryWords.find((w: string) => source.toLowerCase().includes(w)) || "";
+      if (!matchWord && matchFulltext) {
+        source = raw.fulltext || source;
+        matchWord = queryWords.find((w: string) => source.toLowerCase().includes(w)) || queryWords[0];
+      }
+      const matchIdx = source.toLowerCase().indexOf(matchWord);
+      const start = Math.max(0, matchIdx - 80);
+      const end = Math.min(source.length, matchIdx + matchWord.length + 160);
       const snippet = (start > 0 ? "…" : "") +
         source.slice(start, end).replace(/\n/g, " ") +
         (end < source.length ? "…" : "");
