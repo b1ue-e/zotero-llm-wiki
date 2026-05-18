@@ -1,4 +1,3 @@
-import { marked } from "marked";
 import {
   searchPages,
   readPage,
@@ -149,16 +148,7 @@ export function renderAgentPanel({ body, doc }: { body: HTMLElement; doc: Docume
   const welcome = doc.createElement("div");
   welcome.className = "llmwiki-msg llmwiki-msg-assistant";
   const wikiPath = getWikiBaseDir();
-  const welcomeMd = `Hello! I can search your wiki, read papers, list your library, and compile new papers. Ask me anything about your research.\n\nWiki files are stored at: \`${wikiPath}/\``;
-  try {
-    const welcomeHtml = marked.parse(welcomeMd) as string;
-    const range = doc.createRange();
-    range.selectNodeContents(welcome);
-    const fragment = range.createContextualFragment(welcomeHtml);
-    welcome.appendChild(fragment);
-  } catch (_e) {
-    welcome.textContent = welcomeMd;
-  }
+  renderMarkdownTo(welcome, `Hello! I can search your wiki, read papers, list your library, and compile new papers. Ask me anything about your research.\n\nWiki files are stored at: \`${wikiPath}/\``);
   messagesEl.appendChild(welcome);
 
   // Input area
@@ -208,17 +198,188 @@ function addAssistantMessage(text: string): void {
   if (!state.chatEl || !state.doc) return;
   const el = state.doc.createElement("div");
   el.className = "llmwiki-msg llmwiki-msg-assistant";
-  try {
-    const html = marked.parse(text) as string;
-    // insertAdjacentHTML reliably parses HTML in all Firefox contexts
-    (el as HTMLElement).insertAdjacentHTML("beforeend", html);
-  } catch (_e) {
-    // Fallback: plain text with preserved line breaks
-    el.classList.add("llmwiki-msg-plain");
-    el.textContent = text;
-  }
+  // Build DOM directly from markdown — no HTML string parsing needed
+  renderMarkdownTo(el, text);
   state.chatEl.appendChild(el);
   scrollToBottom();
+}
+
+// ─── Markdown-to-DOM Renderer ───
+// Builds elements directly to avoid XUL HTML-parsing issues
+
+function renderMarkdownTo(container: HTMLElement, md: string): void {
+  const doc = state.doc!;
+  const lines = md.split("\n");
+  let i = 0;
+
+  while (i < lines.length) {
+    const line = lines[i];
+
+    // Code block (```...```)
+    if (/^```/.test(line)) {
+      const lang = line.slice(3).trim();
+      const codeLines: string[] = [];
+      i++;
+      while (i < lines.length && !/^```/.test(lines[i])) {
+        codeLines.push(lines[i]);
+        i++;
+      }
+      i++; // skip closing ```
+      const pre = doc.createElement("pre");
+      const code = doc.createElement("code");
+      if (lang) code.className = `language-${lang}`;
+      code.textContent = codeLines.join("\n");
+      pre.appendChild(code);
+      container.appendChild(pre);
+      continue;
+    }
+
+    // Horizontal rule
+    if (/^---+$/.test(line.trim())) {
+      container.appendChild(doc.createElement("hr"));
+      i++;
+      continue;
+    }
+
+    // Heading
+    const headingMatch = line.match(/^(#{1,4})\s+(.+)/);
+    if (headingMatch) {
+      const level = headingMatch[1].length;
+      const h = doc.createElement(`h${level}`);
+      renderInlineTo(h, headingMatch[2]);
+      container.appendChild(h);
+      i++;
+      continue;
+    }
+
+    // Unordered list
+    if (/^[-*]\s+/.test(line)) {
+      const ul = doc.createElement("ul");
+      while (i < lines.length && /^[-*]\s+/.test(lines[i])) {
+        const li = doc.createElement("li");
+        renderInlineTo(li, lines[i].replace(/^[-*]\s+/, ""));
+        ul.appendChild(li);
+        i++;
+      }
+      container.appendChild(ul);
+      continue;
+    }
+
+    // Ordered list
+    if (/^\d+\.\s+/.test(line)) {
+      const ol = doc.createElement("ol");
+      while (i < lines.length && /^\d+\.\s+/.test(lines[i])) {
+        const li = doc.createElement("li");
+        renderInlineTo(li, lines[i].replace(/^\d+\.\s+/, ""));
+        ol.appendChild(li);
+        i++;
+      }
+      container.appendChild(ol);
+      continue;
+    }
+
+    // Table (very simple: | col1 | col2 |)
+    if (/^\|.+\|/.test(line)) {
+      const table = doc.createElement("table");
+      while (i < lines.length && /^\|.+\|/.test(lines[i])) {
+        const cells = lines[i].split("|").filter((c) => c.trim());
+        const isHeader = i + 1 < lines.length && /^\|[-:\s|]+\|$/.test(lines[i + 1]);
+        const tr = doc.createElement("tr");
+        cells.forEach((cell) => {
+          const td = doc.createElement(isHeader ? "th" : "td");
+          renderInlineTo(td, cell.trim());
+          tr.appendChild(td);
+        });
+        // Use tbody; wrap header rows in thead
+        if (isHeader) {
+          const thead = doc.createElement("thead");
+          thead.appendChild(tr);
+          table.appendChild(thead);
+          i += 2; // skip header separator row
+        } else {
+          let tbody = table.querySelector("tbody") as HTMLElement;
+          if (!tbody) {
+            tbody = doc.createElement("tbody");
+            table.appendChild(tbody);
+          }
+          tbody.appendChild(tr);
+          i++;
+        }
+      }
+      container.appendChild(table);
+      continue;
+    }
+
+    // Blockquote
+    if (/^>\s?/.test(line)) {
+      const bq = doc.createElement("blockquote");
+      let bqContent = "";
+      while (i < lines.length && /^>\s?/.test(lines[i])) {
+        bqContent += (bqContent ? "\n" : "") + lines[i].replace(/^>\s?/, "");
+        i++;
+      }
+      renderMarkdownTo(bq, bqContent);
+      container.appendChild(bq);
+      continue;
+    }
+
+    // Empty line → paragraph break
+    if (line.trim() === "") {
+      i++;
+      continue;
+    }
+
+    // Paragraph: collect consecutive non-empty, non-special lines
+    const paraLines: string[] = [];
+    while (i < lines.length && lines[i].trim() !== "" &&
+           !/^```/.test(lines[i]) && !/^---+$/.test(lines[i].trim()) &&
+           !/^#{1,4}\s+/.test(lines[i]) && !/^[-*]\s+/.test(lines[i]) &&
+           !/^\d+\.\s+/.test(lines[i]) && !/^\|.+\|/.test(lines[i]) &&
+           !/^>\s?/.test(lines[i])) {
+      paraLines.push(lines[i]);
+      i++;
+    }
+    if (paraLines.length > 0) {
+      const p = doc.createElement("p");
+      renderInlineTo(p, paraLines.join("\n"));
+      container.appendChild(p);
+    }
+  }
+}
+
+// ─── Inline Markdown ───
+
+function renderInlineTo(el: HTMLElement, text: string): void {
+  const doc = state.doc!;
+  // Split by inline tokens: **bold**, *italic*, `code`, [link](url)
+  const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`|\[[^\]]+\]\([^)]+\))/g);
+  for (const part of parts) {
+    if (!part) continue;
+    if (/^\*\*[^*]+\*\*$/.test(part)) {
+      const strong = doc.createElement("strong");
+      strong.textContent = part.slice(2, -2);
+      el.appendChild(strong);
+    } else if (/^\*[^*]+\*$/.test(part)) {
+      const em = doc.createElement("em");
+      em.textContent = part.slice(1, -1);
+      el.appendChild(em);
+    } else if (/^`[^`]+`$/.test(part)) {
+      const code = doc.createElement("code");
+      code.textContent = part.slice(1, -1);
+      el.appendChild(code);
+    } else if (/^\[([^\]]+)\]\(([^)]+)\)$/.test(part)) {
+      const m = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+      if (m) {
+        const a = doc.createElement("a");
+        a.textContent = m[1];
+        a.setAttribute("href", m[2]);
+        a.setAttribute("target", "_blank");
+        el.appendChild(a);
+      }
+    } else {
+      el.appendChild(doc.createTextNode(part));
+    }
+  }
 }
 
 function addThinking(): HTMLElement | null {
