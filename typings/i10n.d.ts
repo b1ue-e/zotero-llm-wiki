@@ -23,6 +23,7 @@ export type FluentMessageId =
   | 'menupopup-label'
   | 'pref-api-endpoint'
   | 'pref-api-key'
+  | 'pref-auto-extract-concepts'
   | 'pref-help'
   | 'pref-model-name'
   | 'pref-request-timeout'
