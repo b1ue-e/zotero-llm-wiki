@@ -67,11 +67,16 @@ export function writeRaw(slug: string, data: RawPaper): void {
 
 export function readRaw(slug: string): RawPaper | null {
   const path = `${getRawPapersDir()}/${slug}.json`;
+  Zotero.debug(`[llmwiki] rawStorage.readRaw: path=${path}`);
   const content = readFile(path);
-  if (!content) return null;
+  if (!content) {
+    Zotero.debug(`[llmwiki] rawStorage.readRaw: file not found at ${path}`);
+    return null;
+  }
   try {
     return JSON.parse(content) as RawPaper;
-  } catch (_e) {
+  } catch (_e: any) {
+    Zotero.debug(`[llmwiki] rawStorage.readRaw: JSON parse failed: ${_e.message}`);
     return null;
   }
 }
