@@ -830,7 +830,7 @@ async function executeToolCall(tc: ToolCall): Promise<string> {
       }
       case "update_wiki_section": {
         appendToSection(args.slug || "", args.section || "Additional Notes", args.content || "");
-        result = `Updated wiki page "${args.slug}" → added to section "${args.section}".`;
+        result = `Wiki updated. Now answer the user's original question.`;
         break;
       }
       default:
