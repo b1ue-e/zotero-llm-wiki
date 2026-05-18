@@ -398,8 +398,121 @@ function updateSendButton(): void {
   if (state.sendBtn) state.sendBtn.disabled = state.busy;
 }
 
-// ─── Stub (implemented in Task 3) ───
+// ─── Tool Execution ───
 
-async function executeToolCall(_tc: ToolCall): Promise<string> {
-  return "";
+async function executeToolCall(tc: ToolCall): Promise<string> {
+  const name = tc.function.name;
+  const args = JSON.parse(tc.function.arguments || "{}");
+  const card = addToolCard(name, args);
+
+  try {
+    let result: string;
+    switch (name) {
+      case "search_wiki": {
+        const hits = searchPages(args.query || "");
+        result = hits.length === 0
+          ? `No results found for "${args.query}".`
+          : hits.map((h: SearchResult) =>
+              `- **${h.title}** (${h.filePath})\n  ${h.snippet}`
+            ).join("\n\n");
+        break;
+      }
+      case "read_page": {
+        const slug = (args.slug || "").replace(/\.md$/, "");
+        const path = slug.includes("/") ? `${slug}.md` : `papers/${slug}.md`;
+        const page = readPage(path);
+        result = page
+          ? `# ${page.frontmatter["title"] || path}\n\n${page.body}`
+          : `Page not found: ${path}`;
+        break;
+      }
+      case "list_papers": {
+        const papers = parseIndex();
+        result = papers.length === 0
+          ? "No papers in the knowledge base yet."
+          : papers.map((p: IndexEntry) =>
+              `- (${p.year}) **${p.title}** — ${p.summary}`
+            ).join("\n");
+        break;
+      }
+      case "ingest_selected": {
+        const items = ZoteroPane.getSelectedItems();
+        if (!items || items.length === 0) {
+          result = "No items selected in Zotero. Please select one or more papers first.";
+        } else {
+          const titles: string[] = [];
+          for (const item of items) {
+            if (item.isRegularItem?.() && !(item as any).isFeedItem) {
+              await runIngest(item);
+              titles.push(item.getField("title") || "Unknown");
+            }
+          }
+          result = titles.length === 0
+            ? "No regular items selected."
+            : `Compiled ${titles.length} paper(s):\n${titles.map((t: string) => `- ${t}`).join("\n")}`;
+        }
+        break;
+      }
+      default:
+        result = `Unknown tool: ${name}`;
+    }
+    card.update("complete", result);
+    return result;
+  } catch (e: any) {
+    card.update("failed", `Error: ${e.message || String(e)}`);
+    return `Tool error: ${e.message || String(e)}`;
+  }
+}
+
+// ─── Tool Card UI ───
+
+interface ToolCard {
+  el: HTMLElement;
+  update(resultState: "complete" | "failed", detail: string): void;
+}
+
+function addToolCard(name: string, args: Record<string, unknown>): ToolCard {
+  if (!state.chatEl || !state.doc) {
+    return { el: state.doc ? state.doc.createElement("div") : ({} as HTMLElement), update: () => {} };
+  }
+  const doc = state.doc;
+
+  const card = doc.createElement("div");
+  card.className = "llmwiki-tool-card";
+
+  const header = doc.createElement("div");
+  header.className = "llmwiki-tool-card-header";
+
+  const statusEl = doc.createElement("span");
+  statusEl.className = "llmwiki-tool-card-status";
+  statusEl.textContent = "⏳";
+
+  const label = doc.createElement("span");
+  const argStr = Object.entries(args).map(([k, v]) => `${k}=${JSON.stringify(v)}`).join(", ");
+  label.textContent = `${name}(${argStr})`;
+
+  header.appendChild(statusEl);
+  header.appendChild(label);
+
+  header.addEventListener("click", () => {
+    card.classList.toggle("open");
+  });
+
+  const bodyEl = doc.createElement("div");
+  bodyEl.className = "llmwiki-tool-card-body";
+  bodyEl.textContent = "Running...";
+
+  card.appendChild(header);
+  card.appendChild(bodyEl);
+  state.chatEl.appendChild(card);
+  scrollToBottom();
+
+  return {
+    el: card,
+    update(resultState: "complete" | "failed", detail: string) {
+      statusEl.textContent = resultState === "complete" ? "✅" : "❌";
+      bodyEl.textContent = detail;
+      if (resultState === "failed") card.classList.add("open");
+    },
+  };
 }
