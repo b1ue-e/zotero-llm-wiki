@@ -1,125 +1,191 @@
-# LLM Wiki for Zotero
+<p align="center">
+  <img src="addon/content/icons/favicon.png" width="96" height="96" alt="LLM Wiki" />
+</p>
+<h1 align="center">LLM Wiki for Zotero</h1>
+<p align="center">
+  <sup>中文</sup> 将学术论文编译为结构化 · 双向链接的 Markdown 知识库<br />
+  <sub>EN</sub> Compile academic papers into a structured, interlinked Markdown knowledge base
+</p>
+<p align="center">
+  <sub>Based on <a href="https://github.com/karpathy/llm-wiki">Karpathy's LLM-Wiki</a> pattern</sub>
+</p>
 
-> 将学术论文编译为结构化、双向链接的 Markdown 知识库 — 基于 Karpathy 的 LLM-Wiki 模式
->
-> Compile academic papers into a structured, interlinked Markdown knowledge base — based on Karpathy's LLM-Wiki pattern
+<p align="center">
+  <img src="https://img.shields.io/badge/Zotero-9-blue?logo=zotero" alt="Zotero 9" />
+  <img src="https://img.shields.io/badge/license-AGPL--3.0-green" alt="AGPL-3.0" />
+  <img src="https://img.shields.io/badge/version-0.1.0-lightgrey" alt="v0.1.0" />
+</p>
 
-## 功能 / Features
+---
 
-- **📄 一键编译 / One-Click Ingest** — 选中论文，右键 → "LLM Wiki: Ingest"，自动调用 LLM 生成结构化 Wiki 页面（研究问题、方法、关键发现等）
-- **🤖 AI 对话助手 / Agent Chat** — 内置 Agent 面板，支持 OpenAI function-calling，可搜索、阅读、更新 Wiki，回答研究问题
-- **📚 Wiki 浏览器 / Wiki Browser** — 文件树浏览 + Markdown 预览 + 在线编辑，支持 `[[wikilinks]]` 双向导航
-- **🏷️ 概念/实体自动提取 / Concept & Entity Extraction** — Ingest 时自动识别关键概念和命名实体，生成概念页面并建立双向链接，形成知识图谱
-- **📄 PDF 全文提取 / PDF Fulltext** — 自动提取 PDF 全文，原始数据层作为搜索回退，确保信息不丢失
-- **🌐 双语本地化 / Bilingual** — 完整支持英文和中文界面
+**<sup>中文</sup>** 在 Zotero 中选中论文，右键 → "LLM Wiki: Ingest"，插件调用 OpenAI 兼容 API 自动生成结构化 Wiki 页面。支持 AI Agent 对话、概念/实体自动提取、PDF 全文搜索。<br />
+**<sub>EN</sub>** Select a paper in Zotero, right-click → "LLM Wiki: Ingest", and the plugin calls an OpenAI-compatible API to generate a structured wiki page. Includes AI Agent chat, concept/entity extraction, and PDF fulltext search.
 
-## 安装 / Installation
+---
 
-### 从 Release 安装 / Install from Release
+## 功能 Features
 
-1. 下载最新 `.xpi` 文件 / Download the latest `.xpi` file from [Releases](https://github.com/b1ue-e/zotero-llm-wiki/releases)
+<table>
+<tr>
+<td width="50%">
+
+**中文**
+
+- 🚀 **一键编译** — 自动生成包含研究问题、方法、关键发现等章节的 Wiki 页面
+- 🤖 **AI Agent** — Function-calling 驱动的研究助手，可搜索、阅读、更新 Wiki
+- 📚 **Wiki 浏览器** — 文件树 + Markdown 预览 + 在线编辑 + `[[wikilinks]]` 导航
+- 🏷️ **概念/实体提取** — 自动识别关键概念，生成知识图谱双向链接
+- 📄 **PDF 全文** — 自动提取全文作为搜索回退层
+- 🌐 **双语界面** — 完整中英文支持
+
+</td>
+<td width="50%">
+
+**English**
+
+- 🚀 **One-Click Ingest** — Auto-generates wiki pages with Research Question, Method, Key Findings sections
+- 🤖 **AI Agent** — Function-calling research assistant that searches, reads, and updates the wiki
+- 📚 **Wiki Browser** — File tree + Markdown preview + inline editor + `[[wikilinks]]` navigation
+- 🏷️ **Concept/Entity Extraction** — Auto-identifies key concepts, builds knowledge graph backlinks
+- 📄 **PDF Fulltext** — Auto-extracts fulltext as fallback search layer
+- 🌐 **Bilingual UI** — Full English and Chinese support
+
+</td>
+</tr>
+</table>
+
+---
+
+## 安装 Installation
+
+<table>
+<tr>
+<td width="50%">
+
+**中文**
+
+1. 从 [Releases](https://github.com/b1ue-e/zotero-llm-wiki/releases) 下载 `.xpi`
+2. Zotero → 工具 → 插件 → ⚙️ → "从文件安装附加组件"
+3. 偏好设置 → LLM Wiki → 填入 API Endpoint 和 Key
+
+</td>
+<td width="50%">
+
+**English**
+
+1. Download `.xpi` from [Releases](https://github.com/b1ue-e/zotero-llm-wiki/releases)
 2. Zotero → Tools → Add-ons → ⚙️ → "Install Add-on From File"
-3. 选择下载的 `.xpi` 文件 / Select the downloaded `.xpi` file
+3. Preferences → LLM Wiki → set API Endpoint and Key
 
-### 配置 / Configuration
+</td>
+</tr>
+</table>
 
-安装后在 Zotero Preferences → LLM Wiki 中配置 API：
+### 配置项 Preferences
 
-- **API Endpoint** — OpenAI 兼容的 API 地址（默认 `https://api.openai.com/v1`）
-- **API Key** — 你的 API 密钥
-- **Model Name** — 模型名称（默认 `gpt-4o`）
-- **Request Timeout** — 请求超时秒数（默认 120）
-- **Auto-extract concepts** — 编译时是否自动提取概念和实体（默认开启）
+| 配置项 | 默认值 Default | 说明 Description |
+|--------|---------------|------------------|
+| API Endpoint | `https://api.openai.com/v1` | OpenAI 兼容 API 地址 |
+| API Key | — | 你的 API 密钥 / Your API key |
+| Model Name | `gpt-4o` | 模型名称 / Model to use |
+| Request Timeout | `120` | 超时秒数 / Timeout in seconds |
+| Auto-extract concepts | ✔ | 编译时自动提取概念 / Auto-extract during ingest |
 
-## 使用 / Usage
+---
 
-### 编译论文 / Ingest Papers
+## 使用 Usage
 
-1. 在 Zotero 中选中一篇或多篇论文
+### 编译论文 Ingest
+
+<table>
+<tr>
+<td width="50%">
+
+**中文**
+
+1. 选中一篇或多篇论文
 2. 右键 → **"LLM Wiki: Ingest"**
-3. 等待进度条完成 — Wiki 页面将保存至 `{Zotero data}/llm-wiki/wiki/papers/`
+3. Wiki 页面保存至 `{Zotero data}/llm-wiki/wiki/papers/`
 
-### Wiki 浏览器 / Wiki Browser
+</td>
+<td width="50%">
 
-- 选中任意文献 → 右侧面板切换到 **"Wiki Browser"** tab
-- 左侧文件树浏览 papers、concepts、entities
-- 点击文件预览渲染后的 Markdown
-- 点击 **Edit** 进入编辑模式，**Save** 保存更改
-- 点击 `[[wikilinks]]` 跳转到关联页面
+**English**
 
-### Agent 对话 / Agent Chat
+1. Select one or more papers
+2. Right-click → **"LLM Wiki: Ingest"**
+3. Wiki saved to `{Zotero data}/llm-wiki/wiki/papers/`
 
-- 右侧面板切换到 **"Agent"** tab
-- 用自然语言提问，Agent 会搜索和阅读 Wiki 来回答
-- 支持斜杠命令：
-  - `/clear` — 重置对话
-  - `/compact` — 压缩上下文（保留系统提示 + 最近几轮对话）
-  - `/save` — 导出对话为 Markdown 文件
+</td>
+</tr>
+</table>
 
-## 开发 / Development
+### Agent 命令 Commands
 
-### 环境要求 / Prerequisites
+| 命令 | 说明 Description |
+|------|------------------|
+| `/clear` | 重置对话 / Reset conversation |
+| `/compact` | 压缩上下文，保留最近对话 / Compress context window |
+| `/save` | 导出对话为 Markdown / Export conversation as Markdown |
 
-- Node.js ≥ 20
-- Zotero 9 (Firefox ESR 115)
-- 配置 `.env` 文件（参考 `.env.example`）
+---
 
-### 命令 / Commands
+## 开发 Development
 
 ```bash
-npm install        # 安装依赖
-npm start          # 开发服务器：构建 + 安装到 Zotero + 热重载
-npm run build      # 生产构建 (esbuild + tsc 类型检查)
-npm run lint:check # Prettier + ESLint 检查
-npm run lint:fix   # Prettier + ESLint 自动修复
-npm run release    # 构建 + 打包 .xpi
-npm test           # Zotero 集成测试（需要运行中的 Zotero）
+npm install        # 安装依赖 Install
+npm start          # 开发服务器 Dev server (hot reload)
+npm run build      # 生产构建 Production build
+npm run lint:check # 代码检查 Lint check
+npm run lint:fix   # 代码修复 Lint fix
+npm run release    # 打包 .xpi Package for distribution
 ```
 
-### 技术栈 / Tech Stack
+**技术栈 Tech Stack:** TypeScript · esbuild (Firefox 115) · `zotero-plugin-scaffold` · `marked` · Firefox XPCOM
 
-- TypeScript + esbuild (target: Firefox 115)
-- `zotero-plugin-scaffold` — 插件脚手架和构建管线
-- `zotero-plugin-toolkit` — ProgressWindow UI 组件
-- `marked` — Markdown 渲染
-- Firefox XPCOM API — 所有文件 I/O、网络请求（无 Node.js / fetch）
+> 插件运行在 Zotero privileged sandbox 中，不可以使用 `fetch` / `AbortController` / Node.js API。所有 I/O 通过 `Components.classes` / `Components.interfaces`。
+>
+> The plugin runs in Zotero's privileged sandbox — no `fetch`, `AbortController`, or Node.js APIs. All I/O via `Components.classes` / `Components.interfaces`.
 
-### 架构 / Architecture
+### 架构 Architecture
 
 ```
 src/
-├── index.ts              # 入口 — 创建 Addon 全局单例
-├── addon.ts              # Addon 类：持有 data、hooks、api
-├── hooks.ts              # 生命周期回调 + 菜单/通知处理器
+├── index.ts               # 入口 Entry — 全局单例 Addon
+├── addon.ts               # Addon 类：data, hooks, api
+├── hooks.ts               # 生命周期 + 菜单/通知 Lifecycle + menu + notifier
 ├── modules/
-│   ├── ingest.ts          # Ingest 流程编排
-│   ├── llmProvider.ts     # OpenAI 兼容 API (XMLHttpRequest)
-│   ├── wikiStorage.ts     # Wiki 页面创建、索引/日志维护、LLM prompts
-│   ├── wikiReader.ts      # Wiki 页面读取/搜索/树操作
-│   ├── wikiBrowser.ts     # Wiki 文件浏览器 + 预览 + 编辑器面板
-│   ├── agentPanel.ts      # AI Agent 对话面板 (function-calling)
-│   ├── conceptExtractor.ts# LLM 驱动的概念/实体提取
-│   ├── rawStorage.ts      # 原始数据 JSON 层（PDF 全文 + 元数据）
-│   ├── pdfExtractor.ts    # PDF 全文提取
-│   └── preferenceScript.ts# 偏好设置面板初始化
+│   ├── ingest.ts           # Ingest 流程编排 Pipeline orchestration
+│   ├── llmProvider.ts      # OpenAI API → XMLHttpRequest
+│   ├── wikiStorage.ts      # Wiki 页面创建 + 索引/日志 Page CRUD + index/log
+│   ├── wikiReader.ts       # 搜索/读取/树操作 Search/read/tree
+│   ├── wikiBrowser.ts      # 文件浏览器面板 File browser tab panel
+│   ├── agentPanel.ts       # AI Agent 对话面板 Chat tab panel (tool-calling)
+│   ├── conceptExtractor.ts # 概念/实体 LLM 提取 Concept extraction
+│   ├── rawStorage.ts       # 原始 JSON 数据层 Raw paper data layer
+│   ├── pdfExtractor.ts     # PDF 全文提取 Fulltext extraction
+│   └── preferenceScript.ts # 偏好设置面板 Preferences pane
 └── utils/
-    ├── xpcom.ts           # Firefox XPCOM 文件 I/O 封装
-    ├── locale.ts          # Fluent 本地化封装
-    ├── prefs.ts           # 类型化偏好设置封装
-    ├── sanitize.ts        # 文件名安全 slug 生成
-    ├── ztoolkit.ts        # ZoteroToolkit 单例工厂
-    └── window.ts          # 窗口有效性检查
+    ├── xpcom.ts            # XPCOM 文件 I/O 封装
+    ├── locale.ts           # Fluent 本地化封装
+    ├── prefs.ts            # 类型化偏好设置
+    ├── sanitize.ts         # 文件名安全 slug
+    ├── ztoolkit.ts         # ZoteroToolkit 工厂
+    └── window.ts           # 窗口有效性检查
 ```
 
-插件代码运行在 Zotero 的 privileged sandbox 中 — **不能使用 `fetch`/`AbortController`/Node.js API**。所有 I/O 通过 Firefox XPCOM (`Components.classes`/`Components.interfaces`)。
+### 数据流 Data Flow
 
-### 数据架构 / Data Architecture
+```
+Zotero Item → extractMetadata() → writeRaw() → LLM Call #1 → writeWikiPage()
+                                                                      ↓
+                                                          LLM Call #2 (conceptExtractor)
+                                                                      ↓
+                                                          writeConceptPage() + backlinks
+```
 
-采用两层架构（Karpathy 模式）：
-
-- **Raw 层** (`rawStorage.ts`)：论文元数据 + PDF 全文的不可变 JSON 快照，在 LLM 调用*之前*保存。当 Wiki 页面信息不足时作为搜索回退。
-- **Wiki 层** (`wikiStorage.ts` + `wikiReader.ts`)：LLM 生成的结构化 Markdown 页面，包含 `index.md`（目录）和 `log.md`（操作日志）。
+---
 
 ## License
 
-AGPL-3.0-or-later
+AGPL-3.0-or-later · [b1ue-e](https://github.com/b1ue-e)
