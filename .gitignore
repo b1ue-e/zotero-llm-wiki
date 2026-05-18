@@ -29,4 +29,4 @@ docs/*
 .vscode/
 .idea/
 *.swp
-/STATUS.md
+# /STATUS.md (tracked — project status)
