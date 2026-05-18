@@ -34,32 +34,33 @@ export async function extractFulltext(item: Zotero.Item): Promise<string | null>
   }
 }
 
-async function extractFromAttachment(item: Zotero.Item, _att: Zotero.Item): Promise<string | null> {
+async function extractFromAttachment(item: Zotero.Item, att: Zotero.Item): Promise<string | null> {
+  // Fulltext operations work on the PDF ATTACHMENT, not the parent item
   // Strategy 1: Try already-indexed cache
   try {
-    const isIndexed = await Zotero.Fulltext.isFullyIndexed(item);
+    const isIndexed = await Zotero.Fulltext.isFullyIndexed(att);
     Zotero.debug(`[llmwiki] pdfExtractor: isFullyIndexed=${isIndexed}`);
 
     if (isIndexed) {
-      const text = tryReadCache(item);
+      const text = tryReadCache(att);
       if (text) return text;
     }
   } catch (e: any) {
     Zotero.debug(`[llmwiki] pdfExtractor: cache check failed: ${e.message || e}`);
   }
 
-  // Strategy 2: Trigger indexing, wait, read cache
+  // Strategy 2: Trigger indexing on the attachment, wait, read cache
   try {
     // @ts-expect-error - Zotero attachment path
-    const filePath = _att.getFilePath?.() || _att._path;
+    const filePath = att.getFilePath?.() || att._path;
     if (!filePath) return null;
 
-    Zotero.debug(`[llmwiki] pdfExtractor: indexing PDF at ${filePath}`);
-    const ok = await Zotero.Fulltext.indexPDF(filePath, item.id);
+    Zotero.debug(`[llmwiki] pdfExtractor: indexing PDF at ${filePath} attID=${att.id}`);
+    const ok = await Zotero.Fulltext.indexPDF(filePath, att.id);
     Zotero.debug(`[llmwiki] pdfExtractor: indexPDF result=${ok}`);
 
     if (ok) {
-      const text = tryReadCache(item);
+      const text = tryReadCache(att);
       if (text) return text;
     }
   } catch (e: any) {
