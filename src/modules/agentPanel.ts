@@ -353,12 +353,14 @@ async function handleSend(): Promise<void> {
       state.messages.unshift({ role: "system", content: buildSystemPrompt() });
     }
 
-    const response = await callLLM(state.messages);
+    // Tool calling loop — iterate until we get a text response (max 5 rounds)
+    const MAX_TOOL_ROUNDS = 5;
+    let response = await callLLM(state.messages);
+    let round = 0;
 
-    if (thinkingEl) thinkingEl.remove();
-
-    if (response.tool_calls && response.tool_calls.length > 0) {
-      // Add assistant message preserving all API fields (e.g., reasoning_content)
+    while (response.tool_calls && response.tool_calls.length > 0 && round < MAX_TOOL_ROUNDS) {
+      round++;
+      // Add assistant message preserving all API fields
       state.messages.push({
         role: "assistant",
         content: response.content || "",
@@ -376,27 +378,20 @@ async function handleSend(): Promise<void> {
         });
       }
 
-      // Get final response
-      const thinkingEl2 = addThinking();
-      const finalResponse = await callLLM(state.messages);
+      response = await callLLM(state.messages);
+    }
 
-      if (thinkingEl2) thinkingEl2.remove();
+    if (thinkingEl) thinkingEl.remove();
 
-      if (finalResponse.content) {
-        state.messages.push({
-          role: "assistant",
-          content: finalResponse.content,
-          ...finalResponse.rawMessage,
-        } as ChatMessage);
-        addAssistantMessage(finalResponse.content);
-      }
-    } else if (response.content) {
+    if (response.content) {
       state.messages.push({
         role: "assistant",
         content: response.content,
         ...response.rawMessage,
       } as ChatMessage);
       addAssistantMessage(response.content);
+    } else if (round >= MAX_TOOL_ROUNDS) {
+      addAssistantMessage("I ran too many tool calls without reaching a conclusion. Please try a more specific question.");
     }
   } catch (e: any) {
     if (thinkingEl) thinkingEl.remove();
