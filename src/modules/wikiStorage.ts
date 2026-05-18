@@ -227,3 +227,53 @@ export interface PaperMetadata {
   publication?: string;
   doi?: string;
 }
+
+/**
+ * Append content to a specific section of a wiki page.
+ * Finds the ## Section heading and inserts content before the next ## heading.
+ * Creates the section at page end if it doesn't exist.
+ */
+export function appendToSection(slug: string, section: string, content: string): void {
+  const indexPath = `${getWikiBaseDir()}/papers/${slug}.md`;
+  const pageContent = readFile(indexPath);
+  if (!pageContent) return;
+
+  const sectionHeading = `## ${section}`;
+  const lines = pageContent.split("\n");
+  const headingIdx = lines.findIndex((l: string) => l.trim() === sectionHeading);
+
+  let newContent: string;
+  if (headingIdx >= 0) {
+    // Find next ## heading or end of file
+    let nextHeading = lines.length;
+    for (let i = headingIdx + 1; i < lines.length; i++) {
+      if (/^##\s/.test(lines[i])) {
+        nextHeading = i;
+        break;
+      }
+    }
+    // Insert content before the next heading
+    const before = lines.slice(0, nextHeading);
+    const after = lines.slice(nextHeading);
+    newContent = before.join("\n") + "\n" + content + "\n" + after.join("\n");
+  } else {
+    // Section not found — append at end
+    newContent = pageContent.trimEnd() + `\n\n${sectionHeading}\n${content}\n`;
+  }
+
+  // Update `updated` date
+  const now = new Date().toISOString().slice(0, 10);
+  newContent = newContent.replace(/^updated: .*$/m, `updated: ${now}`);
+
+  writeFile(indexPath, newContent);
+
+  // Also update index.md updated date
+  const idxPath = `${getWikiBaseDir()}/index.md`;
+  const idxContent = readFile(idxPath);
+  if (idxContent) {
+    const updated = idxContent
+      .replace(/^updated: .*$/m, `updated: ${now}`)
+      .replace(/^Last updated: .*$/m, `Last updated: ${now}`);
+    writeFile(idxPath, updated);
+  }
+}
