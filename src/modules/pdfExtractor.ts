@@ -85,13 +85,17 @@ function tryReadCache(item: Zotero.Item): string | null {
     const raw = readBinaryFile(cacheFile.path);
     if (!raw || raw.length < 100) return null;
 
-    // Decompress gzip cache
-    const decompressed = decompressGzip(raw);
-    if (!decompressed || decompressed.length < 100) return null;
+    // The cache file is a binary format — try to extract readable text directly
+    const text = extractReadableText(raw);
+    if (text && text.length > 100) return text;
 
-    // The decompressed cache contains text interleaved with binary word-position data.
-    // Extract readable text by filtering printable runs.
-    return extractReadableText(decompressed);
+    // Try gzip decompression as fallback
+    const decompressed = decompressGzip(raw);
+    if (decompressed && decompressed.length > 100) {
+      return extractReadableText(decompressed);
+    }
+
+    return null;
   } catch (e: any) {
     Zotero.debug(`[llmwiki] pdfExtractor: cache read failed: ${e.message || e}`);
     return null;
@@ -140,18 +144,20 @@ function decompressGzip(raw: string): string | null {
  * The cache contains text interleaved with binary word-position metadata.
  */
 function extractReadableText(data: string): string {
-  // Filter out binary content, keep runs of printable chars
-  const cleaned = data.replace(/[^\x20-\x7E\xA0-\xFFĀ-￿\s\n\t]/g, " ");
+  // The cache stores text runs interleaved with binary word-position metadata.
+  // Each text run looks like: <length_byte><text_bytes>
+  // Filter to runs of printable ASCII + common Unicode, keep newlines
+  const cleaned = data.replace(/[^\x20-\x7E -ÿĀ-￿\s\n\t\r]/g, " ");
   // Collapse whitespace
-  const words = cleaned.replace(/\s+/g, " ").trim();
-  // Only return if we have enough readable content
-  if (words.length < 100) return "";
+  const collapsed = cleaned.replace(/\s+/g, " ").trim();
+  if (collapsed.length < 100) return "";
 
-  // Try to extract complete sentences (runs of words ending with punctuation)
-  const sentences = words.match(/[^.!?]+[.!?]/g);
-  if (sentences && sentences.length > 3) {
+  // Try to find sentence sequences
+  const sentences = collapsed.match(/[^.!?]+[.!?]/g);
+  if (sentences && sentences.length > 5) {
     return sentences.join(" ");
   }
 
-  return words;
+  // Fallback: return all readable text
+  return collapsed;
 }
