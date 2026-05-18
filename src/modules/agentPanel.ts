@@ -10,6 +10,8 @@ import {
 import { runIngest } from "./ingest";
 import { getPref } from "../utils/prefs";
 import { getWikiBaseDir } from "../utils/xpcom";
+import { searchRaw, readRaw } from "./rawStorage";
+import { appendToSection } from "./wikiStorage";
 
 // ─── Types ───
 
@@ -515,6 +517,50 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "search_raw",
+      description: "Full-text search across raw paper data (original abstracts and full text). Use when search_wiki returns insufficient results, or when you need to find information from the original paper text that may not be in the structured wiki.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "Search query" },
+        },
+        required: ["query"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "read_raw",
+      description: "Read the complete raw data of a paper by its slug, including original abstract and full text if available.",
+      parameters: {
+        type: "object",
+        properties: {
+          slug: { type: "string", description: "Paper slug (e.g., 'papers/title-hash' or just 'title-hash')" },
+        },
+        required: ["slug"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "update_wiki_section",
+      description: "Append new information to a specific section of a wiki page. Use this when raw data contains important knowledge not yet captured in the structured wiki page.",
+      parameters: {
+        type: "object",
+        properties: {
+          slug: { type: "string", description: "Wiki page slug (e.g., 'papers/title-hash')" },
+          section: { type: "string", description: "Section name: Research Question, Method, Key Findings, Conclusions, Limitations, Related Work" },
+          content: { type: "string", description: "Markdown content to append to the section" },
+        },
+        required: ["slug", "section", "content"],
+      },
+    },
+  },
 ];
 
 // ─── System Prompt ───
@@ -534,7 +580,16 @@ function buildSystemPrompt(): string {
 - Cite papers using their exact titles when referencing them.
 - If you cannot find relevant information, suggest that the user ingest related papers.
 - Be concise, precise, and academic in your responses.
-- Write in the same language the user uses.`;
+- Write in the same language the user uses.
+
+## Raw Layer Access
+Each wiki page has a corresponding raw data file containing the original metadata, abstract, and full text (if the PDF was available during ingest).
+
+When answering questions:
+- If search_wiki returns few or no results, automatically try search_raw — it searches the original abstracts and full text which may contain information not captured in the structured wiki
+- If a wiki page lacks depth (e.g., sparse Method or Findings section), use read_raw to get the full original text, then answer from there
+- When raw data reveals important information that is not yet in the wiki, use update_wiki_section to enrich the wiki page so future queries benefit from it
+- update_wiki_section section names should be one of: "Research Question", "Method", "Key Findings", "Conclusions", "Limitations", "Related Work"`;
 }
 
 // ─── Send Handler ───
@@ -665,6 +720,39 @@ async function executeToolCall(tc: ToolCall): Promise<string> {
             ? "No regular items selected."
             : `Compiled ${titles.length} paper(s):\n${titles.map((t: string) => `- ${t}`).join("\n")}`;
         }
+        break;
+      }
+      case "search_raw": {
+        const hits = searchRaw(args.query || "");
+        result = hits.length === 0
+          ? `No results found in raw layer for "${args.query}".`
+          : hits.map((h) =>
+              `- **${h.title}** (${h.slug})\n  ${h.snippet}`
+            ).join("\n\n");
+        break;
+      }
+      case "read_raw": {
+        const rawSlug = (args.slug || "").replace(/\.md$/, "");
+        const rawSlugClean = rawSlug.includes("/") ? rawSlug.split("/").pop()! : rawSlug;
+        const raw = readRaw(rawSlugClean);
+        result = raw
+          ? [
+              `# ${raw.title}`,
+              `Authors: ${raw.authors}`,
+              `Year: ${raw.year}`,
+              raw.doi ? `DOI: ${raw.doi}` : "",
+              "",
+              `## Abstract`,
+              raw.abstract || "(no abstract)",
+              "",
+              raw.fulltext ? `## Full Text\n${raw.fulltext.slice(0, 5000)}${raw.fulltext.length > 5000 ? "\n...(truncated)" : ""}` : "(no full text available)",
+            ].join("\n")
+          : `Raw data not found for: ${args.slug}. Try ingesting this paper first.`;
+        break;
+      }
+      case "update_wiki_section": {
+        appendToSection(args.slug || "", args.section || "Additional Notes", args.content || "");
+        result = `Updated wiki page "${args.slug}" → added to section "${args.section}".`;
         break;
       }
       default:
