@@ -1,4 +1,4 @@
-import { getWikiBaseDir, writeFile, readFile, listDir, ensureDirs, makeDir } from "../utils/xpcom";
+import { getWikiBaseDir, writeBinaryFile, readBinaryFile, listDir, makeDir } from "../utils/xpcom";
 
 // ─── Types ───
 
@@ -58,21 +58,25 @@ function ensureRawDirs(): void {
 
 // ─── Read / Write ───
 
+const MAX_FULLTEXT_LENGTH = 200000; // ~200KB max for JSON safety
+
 export function writeRaw(slug: string, data: RawPaper): void {
   ensureRawDirs();
   const path = `${getRawPapersDir()}/${slug}.json`;
-  writeFile(path, JSON.stringify(data, null, 2));
+  // Truncate fulltext to avoid huge files and JSON encoding issues
+  if (data.fulltext && data.fulltext.length > MAX_FULLTEXT_LENGTH) {
+    data.fulltext = data.fulltext.slice(0, MAX_FULLTEXT_LENGTH)
+      + `\n\n[...truncated from ${data.fulltext.length} chars]`;
+  }
+  // Use binary write to avoid UTF-8 converter corruption on special chars
+  writeBinaryFile(path, JSON.stringify(data, null, 2));
   updateRawIndex({ slug, title: data.title, authors: data.authors, year: data.year, wiki_slug: data.wiki_slug });
 }
 
 export function readRaw(slug: string): RawPaper | null {
   const path = `${getRawPapersDir()}/${slug}.json`;
-  Zotero.debug(`[llmwiki] rawStorage.readRaw: path=${path}`);
-  const content = readFile(path);
-  if (!content) {
-    Zotero.debug(`[llmwiki] rawStorage.readRaw: file not found at ${path}`);
-    return null;
-  }
+  const content = readBinaryFile(path);
+  if (!content) return null;
   try {
     return JSON.parse(content) as RawPaper;
   } catch (_e: any) {
@@ -84,7 +88,7 @@ export function readRaw(slug: string): RawPaper | null {
 // ─── Index ───
 
 function readIndex(): RawIndexEntry[] {
-  const content = readFile(getIndexPath());
+  const content = readBinaryFile(getIndexPath());
   if (!content) return [];
   try {
     return JSON.parse(content) as RawIndexEntry[];
@@ -95,7 +99,7 @@ function readIndex(): RawIndexEntry[] {
 
 function writeIndex(entries: RawIndexEntry[]): void {
   ensureRawDirs();
-  writeFile(getIndexPath(), JSON.stringify(entries, null, 2));
+  writeBinaryFile(getIndexPath(), JSON.stringify(entries, null, 2));
 }
 
 function updateRawIndex(entry: RawIndexEntry): void {
