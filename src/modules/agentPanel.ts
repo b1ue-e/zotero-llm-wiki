@@ -731,11 +731,11 @@ function saveConversation(): void {
       md += `**User:** ${msg.content}\n\n`;
     } else if (msg.role === "assistant") {
       const preview = msg.content.length > 2000
-        ? msg.content.slice(0, 2000) + "..."
+        ? msg.content.slice(0, 5000) + "..."
         : msg.content;
       md += `**Agent:** ${preview}\n\n`;
     } else if (msg.role === "tool") {
-      md += `> Tool result (${msg.tool_call_id || "?"}): ${msg.content.slice(0, 500)}\n\n`;
+      md += `> Tool result (${msg.tool_call_id || "?"}): ${msg.content}\n\n`;
     }
   }
 
