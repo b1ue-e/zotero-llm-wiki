@@ -125,7 +125,9 @@ const AGENT_CSS = `
 export function renderAgentPanel({ body, doc }: { body: HTMLElement; doc: Document }): void {
   if (!body) return;
   state.doc = doc;
-  state.messages = [];
+
+  // Only build shell once — skip if already populated
+  if (body.firstChild) return;
 
   while (body.firstChild) body.removeChild(body.firstChild);
 
@@ -208,10 +210,8 @@ function addAssistantMessage(text: string): void {
   el.className = "llmwiki-msg llmwiki-msg-assistant";
   try {
     const html = marked.parse(text) as string;
-    // Range.createContextualFragment properly parses HTML in XUL documents
-    const range = state.doc.createRange();
-    range.selectNodeContents(el);
-    el.appendChild(range.createContextualFragment(html));
+    // insertAdjacentHTML reliably parses HTML in all Firefox contexts
+    (el as HTMLElement).insertAdjacentHTML("beforeend", html);
   } catch (_e) {
     // Fallback: plain text with preserved line breaks
     el.classList.add("llmwiki-msg-plain");

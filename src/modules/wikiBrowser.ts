@@ -152,6 +152,9 @@ export function renderWikiBrowser({ body, doc }: { body: HTMLElement; doc: Docum
   if (!body) return;
   state.doc = doc;
 
+  // Only build shell once — skip if already populated
+  if (body.firstChild) return;
+
   try {
     // Clear body
     while (body.firstChild) body.removeChild(body.firstChild);
