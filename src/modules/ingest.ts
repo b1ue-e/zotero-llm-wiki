@@ -1,9 +1,18 @@
 import { callLLM } from "./llmProvider";
-import { buildSystemPrompt, buildUserPrompt, writeWikiPage, PaperMetadata } from "./wikiStorage";
+import {
+  buildSystemPrompt,
+  buildUserPrompt,
+  writeWikiPage,
+  writeConceptPage,
+  appendSeeAlsoToPaper,
+  PaperMetadata,
+} from "./wikiStorage";
 import { getString } from "../utils/locale";
 import type { FluentMessageId } from "../../typings/i10n";
 import { writeRaw } from "./rawStorage";
 import { extractFulltext } from "./pdfExtractor";
+import { getPref } from "../utils/prefs";
+import { extractConcepts } from "./conceptExtractor";
 import { titleToSlug } from "../utils/sanitize";
 
 function delay(ms: number): Promise<void> {
@@ -66,6 +75,29 @@ export async function runIngest(item: Zotero.Item): Promise<void> {
 
     const filePath = await writeWikiPage(metadata.title, wikiContent, metadata);
     Zotero.debug(`[llmwiki] wiki saved to ${filePath}`);
+
+    // Extract concepts and entities
+    if (getPref("autoExtractConcepts") !== false) {
+      try {
+        progress.changeLine({
+          text: getString("ingest-extracting-concepts", { args: { title: metadata.title.slice(0, 60) } }),
+          progress: 85,
+        });
+        const concepts = await extractConcepts(metadata.title, wikiContent, metadata.abstract || "");
+        Zotero.debug(`[llmwiki] extracted ${concepts.length} concepts/entities`);
+
+        for (const c of concepts) {
+          progress.changeLine({
+            text: getString("ingest-writing-concept", { args: { type: c.type, name: c.name.slice(0, 60) } }),
+            progress: 90,
+          });
+          await writeConceptPage(c, slug, metadata.title);
+          await appendSeeAlsoToPaper(slug, c.englishSlug, c.name, c.type);
+        }
+      } catch (e: any) {
+        Zotero.debug(`[llmwiki] concept extraction failed (non-blocking): ${e.message}`);
+      }
+    }
 
     progress.startCloseTimer(0);
     showNotification(

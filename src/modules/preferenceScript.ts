@@ -26,6 +26,9 @@ function ensureDefaults() {
   if (!getPref("requestTimeout")) {
     setPref("requestTimeout", 120);
   }
+  if (!getPref("autoExtractConcepts")) {
+    setPref("autoExtractConcepts", true);
+  }
 }
 
 function bindPrefEvents() {

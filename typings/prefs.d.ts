@@ -11,6 +11,7 @@ declare namespace _ZoteroTypes {
       "apiKey": string;
       "modelName": string;
       "requestTimeout": number;
+      "autoExtractConcepts": boolean;
     };
   }
 }

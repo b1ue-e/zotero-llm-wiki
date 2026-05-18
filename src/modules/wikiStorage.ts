@@ -7,6 +7,9 @@ import {
   readFile,
   ensureDirs,
 } from "../utils/xpcom";
+import { callLLM } from "./llmProvider";
+import { parseFrontmatter } from "./wikiReader";
+import type { ConceptExtraction } from "./conceptExtractor";
 
 // ─── Directory structure (Karpathy LLM-Wiki pattern) ───
 //
@@ -277,4 +280,202 @@ export function appendToSection(slug: string, section: string, content: string):
       .replace(/^Last updated: .*$/m, `Last updated: ${now}`);
     writeFile(idxPath, updated);
   }
+}
+// ─── Concept/Entity Page Writer ───
+
+function buildConceptPage(concept: ConceptExtraction, paperSlug: string, paperTitle: string): string {
+  const now = new Date().toISOString().slice(0, 10);
+
+  const frontmatter = [
+    "---",
+    `title: "${escapeYaml(concept.name)}"`,
+    `type: ${concept.type}`,
+    `slug: ${concept.englishSlug}`,
+    `created: ${now}`,
+    `updated: ${now}`,
+    "tags: []",
+    "---",
+    "",
+  ].join("\n");
+
+  const body = [
+    "## Definition",
+    concept.definition,
+    "",
+    "## Related Papers",
+    `- [[papers/${paperSlug}|${escapeYaml(paperTitle)}]] — ${concept.relevance || "Related work"}`,
+    "",
+    "## See Also",
+    "",
+  ].join("\n");
+
+  return frontmatter + body;
+}
+
+function buildMergePrompt(): string {
+  return `You are merging new paper information into an existing wiki page.
+Given the EXISTING page body (without YAML frontmatter) and a NEW paper reference, produce the merged page body.
+
+## Rules
+- Add the new paper to ## Related Papers with the provided relevance description
+- If the new paper provides richer understanding, improve the ## Definition
+- Keep existing ## See Also links intact
+- Preserve ALL existing entries in ## Related Papers
+- Do NOT remove any existing content unless it is factually incorrect
+- Output ONLY the merged page body — no YAML frontmatter, no code fences`;
+}
+
+export async function writeConceptPage(
+  concept: ConceptExtraction,
+  paperSlug: string,
+  paperTitle: string,
+): Promise<void> {
+  const dir = concept.type === "concept" ? "concepts" : "entities";
+  const filePath = `${getWikiBaseDir()}/${dir}/${concept.englishSlug}.md`;
+  const existingContent = readFile(filePath);
+
+  if (!existingContent) {
+    // New page — create from template
+    const pageContent = buildConceptPage(concept, paperSlug, paperTitle);
+    writeFile(filePath, pageContent);
+    updateConceptIndex(concept);
+    appendLog("concept", `created [[${dir}/${concept.englishSlug}|${concept.name}]] from [[papers/${paperSlug}]]`);
+  } else {
+    // Existing page — merge via LLM
+    try {
+      const { frontmatter, body } = parseFrontmatter(existingContent);
+
+      const userPrompt = [
+        "# Existing Page Body",
+        body,
+        "",
+        "# New Paper to Merge",
+        `Title: ${paperTitle}`,
+        `Relevance: ${concept.relevance || "Related work"}`,
+        `Link: [[papers/${paperSlug}|${paperTitle}]]`,
+        "",
+        "Merge the new paper into the existing page body as specified.",
+      ].join("\n");
+
+      Zotero.debug(`[llmwiki] merging concept: ${concept.name} into existing page`);
+      const mergedBody = await callLLM([
+        { role: "system", content: buildMergePrompt() },
+        { role: "user", content: userPrompt },
+      ]);
+
+      const now = new Date().toISOString().slice(0, 10);
+      const newFrontmatter = Object.entries(frontmatter)
+        .map(([k, v]) => {
+          if (k === "updated") return `updated: ${now}`;
+          // Preserve YAML lists (tags) and multi-line values without extra quoting
+          if (v.startsWith("[") || v.startsWith("- ")) return `${k}: ${v}`;
+          return `${k}: ${v.includes(" ") || v.includes('"') ? `"${escapeYaml(v)}"` : v}`;
+        })
+        .join("\n");
+
+      const mergedContent = `---\n${newFrontmatter}\n---\n\n${mergedBody}`;
+      writeFile(filePath, mergedContent);
+      updateConceptIndex(concept);
+      appendLog("merge", `updated [[${dir}/${concept.englishSlug}|${concept.name}]] with paper [[papers/${paperSlug}]]`);
+    } catch (e: any) {
+      // Fallback: simple append to Related Papers without LLM
+      Zotero.debug(`[llmwiki] concept merge failed, using simple append: ${e.message}`);
+      const now = new Date().toISOString().slice(0, 10);
+      const updated = existingContent
+        .replace(/^updated: .*$/m, `updated: ${now}`)
+        .replace(
+          /(## Related Papers\n)/,
+          `$1- [[papers/${paperSlug}|${escapeYaml(paperTitle)}]] — ${concept.relevance || "Related work"}\n`,
+        );
+      writeFile(filePath, updated);
+      updateConceptIndex(concept);
+      appendLog("merge", `updated [[${dir}/${concept.englishSlug}|${concept.name}]] with paper [[papers/${paperSlug}]] (fallback)`);
+    }
+  }
+}
+
+function updateConceptIndex(concept: ConceptExtraction): void {
+  const indexPath = `${getWikiBaseDir()}/index.md`;
+  const now = new Date().toISOString().slice(0, 10);
+  const dir = concept.type === "concept" ? "concepts" : "entities";
+  const sectionHeading = concept.type === "concept" ? "## Concepts" : "## Entities";
+  const linkLine = `- [[${dir}/${concept.englishSlug}|${concept.name}]]`;
+
+  let content = readFile(indexPath);
+  if (!content) return;
+
+  let modified = false;
+
+  // Ensure the section exists
+  if (!content.includes(sectionHeading)) {
+    // Insert after ## Papers section
+    if (content.includes("## Papers")) {
+      const papersIdx = content.indexOf("## Papers");
+      let insertIdx = content.indexOf("\n## ", papersIdx + 9);
+      if (insertIdx === -1) {
+        // No next ## section — append at end
+        content = content.trimEnd() + `\n\n${sectionHeading}\n${linkLine}\n`;
+      } else {
+        // Insert before the next ## section
+        content = content.slice(0, insertIdx) + `\n${sectionHeading}\n${linkLine}\n` + content.slice(insertIdx);
+      }
+    } else {
+      content += `\n\n${sectionHeading}\n${linkLine}\n`;
+    }
+    modified = true;
+  } else {
+    // Section exists — check if this entry is already listed
+    if (!content.includes(linkLine)) {
+      const sectionIdx = content.indexOf(sectionHeading);
+      const afterHeading = content.indexOf("\n", sectionIdx) + 1;
+      content = content.slice(0, afterHeading) + linkLine + "\n" + content.slice(afterHeading);
+      modified = true;
+    }
+  }
+
+  // Update dates only if content was actually modified
+  if (modified) {
+    content = content.replace(/^updated: .*$/m, `updated: ${now}`);
+    content = content.replace(/^Last updated: .*$/m, `Last updated: ${now}`);
+    writeFile(indexPath, content);
+  }
+}
+
+// ─── Backlink Writer ───
+
+export function appendSeeAlsoToPaper(
+  paperSlug: string,
+  conceptSlug: string,
+  conceptName: string,
+  conceptType: "concept" | "entity",
+): void {
+  const cleanSlug = paperSlug.replace(/^papers\//, "").replace(/\.md$/, "");
+  const filePath = `${getWikiBaseDir()}/papers/${cleanSlug}.md`;
+  const content = readFile(filePath);
+  if (!content) return;
+
+  const dir = conceptType === "concept" ? "concepts" : "entities";
+  const linkLine = `- [[${dir}/${conceptSlug}|${conceptName}]]`;
+
+  // Check if this link already exists
+  if (content.includes(linkLine)) return;
+
+  const lines = content.split("\n");
+  const seeAlsoIdx = lines.findIndex((l: string) => /^## See Also\s*$/.test(l));
+
+  let newContent: string;
+  const now = new Date().toISOString().slice(0, 10);
+
+  if (seeAlsoIdx >= 0) {
+    // Insert after ## See Also heading
+    const before = lines.slice(0, seeAlsoIdx + 1);
+    const after = lines.slice(seeAlsoIdx + 1);
+    newContent = before.join("\n") + "\n" + linkLine + "\n" + after.join("\n");
+  } else {
+    // No See Also section — append at end
+    newContent = content.trimEnd() + `\n\n## See Also\n${linkLine}\n`;
+  }
+
+  newContent = newContent.replace(/^updated: .*$/m, `updated: ${now}`);
+  writeFile(filePath, newContent);
 }
