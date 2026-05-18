@@ -774,12 +774,13 @@ async function executeToolCall(tc: ToolCall): Promise<string> {
     switch (name) {
       case "search_wiki": {
         const hits = searchPages(args.query || "");
+        const rawReminder = "\n\n---\nIf the raw content above has details missing from the wiki, call update_wiki_section NOW to enrich it before answering.";
         if (hits.length === 0) {
           // Auto-fallback to raw layer
           const rawHits = searchRaw(args.query || "");
           result = rawHits.length === 0
             ? `No results found for "${args.query}" in wiki or raw layer.`
-            : `No wiki results, but raw layer found:\n${rawHits.map((h: SearchResult) => `- **${h.title}** (${h.slug})\n  ${h.snippet}`).join("\n\n")}`;
+            : `No wiki results, but raw layer found:\n${rawHits.map((h: SearchResult) => `- **${h.title}** (${h.slug})\n  ${h.snippet}`).join("\n\n")}${rawReminder}`;
         } else {
           result = hits.map((h: SearchResult) =>
               `- **${h.title}** (${h.filePath})\n  ${h.snippet}`
@@ -787,7 +788,7 @@ async function executeToolCall(tc: ToolCall): Promise<string> {
           // Also append raw results if available
           const rawHits = searchRaw(args.query || "");
           if (rawHits.length > 0) {
-            result += `\n\nRaw layer also found:\n${rawHits.map((h: SearchResult) => `- **${h.title}** (${h.slug})\n  ${h.snippet}`).join("\n\n")}`;
+            result += `\n\nRaw layer also found:\n${rawHits.map((h: SearchResult) => `- **${h.title}** (${h.slug})\n  ${h.snippet}`).join("\n\n")}${rawReminder}`;
           }
         }
         break;
