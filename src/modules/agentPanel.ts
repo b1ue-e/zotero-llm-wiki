@@ -138,11 +138,19 @@ export function renderAgentPanel({ body, doc }: { body: HTMLElement; doc: Docume
   state.chatEl = messagesEl;
 
   // Welcome message
-  const xns = "http://www.w3.org/1999/xhtml";
-  const welcome = doc.createElementNS(xns, "div");
-  welcome.setAttribute("class", "llmwiki-msg llmwiki-msg-assistant");
+  const welcome = doc.createElement("div");
+  welcome.className = "llmwiki-msg llmwiki-msg-assistant";
   const wikiPath = getWikiBaseDir();
-  welcome.innerHTML = marked.parse(`Hello! I can search your wiki, read papers, list your library, and compile new papers. Ask me anything about your research.\n\nWiki files are stored at: \`${wikiPath}/\``) as string;
+  const welcomeMd = `Hello! I can search your wiki, read papers, list your library, and compile new papers. Ask me anything about your research.\n\nWiki files are stored at: \`${wikiPath}/\``;
+  try {
+    const welcomeHtml = marked.parse(welcomeMd) as string;
+    const range = doc.createRange();
+    range.selectNodeContents(welcome);
+    const fragment = range.createContextualFragment(welcomeHtml);
+    welcome.appendChild(fragment);
+  } catch (_e) {
+    welcome.textContent = welcomeMd;
+  }
   messagesEl.appendChild(welcome);
 
   // Input area
@@ -190,14 +198,16 @@ function addUserMessage(text: string): void {
 
 function addAssistantMessage(text: string): void {
   if (!state.chatEl || !state.doc) return;
-  // Use XHTML namespace — innerHTML on XUL elements strips HTML tags
-  const ns = "http://www.w3.org/1999/xhtml";
-  const el = state.doc.createElementNS(ns, "div");
-  el.setAttribute("class", "llmwiki-msg llmwiki-msg-assistant");
+  const el = state.doc.createElement("div");
+  el.className = "llmwiki-msg llmwiki-msg-assistant";
   try {
-    el.innerHTML = marked.parse(text) as string;
+    const html = marked.parse(text) as string;
+    const range = state.doc.createRange();
+    range.selectNodeContents(el);
+    const fragment = range.createContextualFragment(html);
+    el.appendChild(fragment);
   } catch (_e) {
-    el.setAttribute("class", "llmwiki-msg llmwiki-msg-assistant llmwiki-msg-plain");
+    el.classList.add("llmwiki-msg-plain");
     el.textContent = text;
   }
   state.chatEl.appendChild(el);
