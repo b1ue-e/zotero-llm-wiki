@@ -58,6 +58,8 @@ const state: AgentState = {
   busy: false,
 };
 
+let _rawFlag = false;
+
 // ─── CSS ───
 
 const AGENT_CSS = `
@@ -632,6 +634,7 @@ async function handleSend(): Promise<void> {
     let response = await callLLM(state.messages);
     let round = 0;
     let searchCount = 0;
+    _rawFlag = false;
     const MAX_SEARCHES = 5;
 
     while (response.tool_calls && response.tool_calls.length > 0 && round < MAX_TOOL_ROUNDS) {
@@ -664,6 +667,26 @@ async function handleSend(): Promise<void> {
       }
 
       response = await callLLM(state.messages);
+    }
+
+    // After tool loop, if raw was used, give one chance to enrich wiki + answer
+    if (_rawFlag && response.content) {
+      state.messages.push({ role: "user", content: "If you found raw layer info missing from the wiki, call update_wiki_section now. Then give your final answer." });
+      const enrichResp = await callLLM(state.messages);
+      if (enrichResp.tool_calls && enrichResp.tool_calls.length > 0) {
+        for (const tc of enrichResp.tool_calls) {
+          if (tc.function.name === "update_wiki_section") {
+            await executeToolCall(tc);
+          }
+        }
+        if (enrichResp.content) response = enrichResp;
+        else {
+          const finalResp = await callLLM(state.messages);
+          if (finalResp.content) response = finalResp;
+        }
+      } else if (enrichResp.content) {
+        response = enrichResp;
+      }
     }
 
     if (thinkingEl) thinkingEl.remove();
@@ -777,9 +800,12 @@ async function executeToolCall(tc: ToolCall): Promise<string> {
         if (hits.length === 0) {
           // Auto-fallback to raw layer
           const rawHits = searchRaw(args.query || "");
-          result = rawHits.length === 0
-            ? `No results found for "${args.query}" in wiki or raw layer.`
-            : `No wiki results, but raw layer found:\n${rawHits.map((h: SearchResult) => `- **${h.title}** (${h.slug})\n  ${h.snippet}`).join("\n\n")}`;
+          if (rawHits.length > 0) {
+            _rawFlag = true;
+            result = `No wiki results, but raw layer found:\n${rawHits.map((h: SearchResult) => `- **${h.title}** (${h.slug})\n  ${h.snippet}`).join("\n\n")}`;
+          } else {
+            result = `No results found for "${args.query}" in wiki or raw layer.`;
+          }
         } else {
           result = hits.map((h: SearchResult) =>
               `- **${h.title}** (${h.filePath})\n  ${h.snippet}`
@@ -787,6 +813,7 @@ async function executeToolCall(tc: ToolCall): Promise<string> {
           // Also append raw results if available
           const rawHits = searchRaw(args.query || "");
           if (rawHits.length > 0) {
+            _rawFlag = true;
             result += `\n\nRaw layer also found:\n${rawHits.map((h: SearchResult) => `- **${h.title}** (${h.slug})\n  ${h.snippet}`).join("\n\n")}`;
           }
         }
