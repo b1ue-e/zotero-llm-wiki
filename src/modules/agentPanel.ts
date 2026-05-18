@@ -65,8 +65,8 @@ const AGENT_CSS = `
     border-top: 1px solid var(--fill-quaternary, #e0e0e0); }
   #llmwiki-agent-input { flex: 1; min-height: 36px; max-height: 120px; border: 1px solid
     var(--fill-quaternary, #ccc); border-radius: 6px; padding: 8px; font-size: 13px;
-    resize: none; background: var(--fill-primary, #fff); color: inherit;
-    font-family: inherit; }
+    resize: none; background: var(--fill-primary, #fff);
+    color: var(--text-primary, #000); font-family: inherit; }
   #llmwiki-agent-send { padding: 6px 16px; border-radius: 6px; border: none;
     background: var(--accent-selected, #0060df); color: #fff; cursor: pointer;
     font-size: 13px; white-space: nowrap; }
@@ -231,7 +231,7 @@ function callLLM(messages: ChatMessage[]): Promise<LLMResponse> {
         return;
       }
       if (xhr.status < 200 || xhr.status >= 300) {
-        reject(new Error(`API error (${xhr.status})`));
+        reject(new Error(`API error (${xhr.status}): ${xhr.responseText?.slice(0, 300) || ""}`));
         return;
       }
       try {
