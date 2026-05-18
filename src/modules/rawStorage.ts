@@ -162,8 +162,8 @@ export function searchRaw(query: string): SearchResult[] {
         if (next === -1) break;
         matchIdx = next;
       }
-      const start = Math.max(0, matchIdx - 3000);
-      const end = Math.min(source.length, matchIdx + matchWord.length + 7000);
+      const start = Math.max(0, matchIdx - 1500);
+      const end = Math.min(source.length, matchIdx + matchWord.length + 3500);
       const snippet = (start > 0 ? "…" : "") +
         source.slice(start, end).replace(/\n/g, " ") +
         (end < source.length ? "…" : "");
