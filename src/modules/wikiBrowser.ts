@@ -152,8 +152,8 @@ export function renderWikiBrowser({ body, doc }: { body: HTMLElement; doc: Docum
   if (!body) return;
   state.doc = doc;
 
-  // Only build shell once — skip if already populated
-  if (body.firstChild) return;
+  // Rebuild only if our shell was detached (tab hidden → DOM destroyed by Zotero)
+  if (state.tree?.parentNode) return;
 
   try {
     // Clear body

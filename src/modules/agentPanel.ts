@@ -127,8 +127,12 @@ export function renderAgentPanel({ body, doc }: { body: HTMLElement; doc: Docume
   if (!body) return;
   state.doc = doc;
 
-  // Only build shell once — skip if already populated
-  if (body.firstChild) return;
+  // Rebuild only if our shell was detached (tab hidden → DOM destroyed by Zotero)
+  if (state.chatEl?.parentNode) return;
+
+  // Preserve conversation across rebuilds
+  const oldMessages = state.messages;
+  state.messages = [];
 
   while (body.firstChild) body.removeChild(body.firstChild);
 
@@ -183,6 +187,16 @@ export function renderAgentPanel({ body, doc }: { body: HTMLElement; doc: Docume
   container.appendChild(messagesEl);
   container.appendChild(inputArea);
   body.appendChild(container);
+
+  // Restore conversation history after rebuild
+  for (const msg of oldMessages) {
+    if (msg.role === "user") {
+      addUserMessage(msg.content);
+    } else if (msg.role === "assistant") {
+      addAssistantMessage(msg.content);
+    }
+  }
+  state.messages = oldMessages;
 }
 
 // ─── Message Rendering ───
