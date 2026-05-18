@@ -3,6 +3,7 @@ import { registerPrefsScripts } from "./modules/preferenceScript";
 import { createZToolkit } from "./utils/ztoolkit";
 import { runIngest } from "./modules/ingest";
 import { renderWikiBrowser } from "./modules/wikiBrowser";
+import { renderAgentPanel } from "./modules/agentPanel";
 
 async function onStartup() {
   Zotero.debug("[llmwiki] onStartup begin");
@@ -35,6 +36,23 @@ async function onStartup() {
     },
   });
   Zotero.debug(`[llmwiki] registerSection returned: ${registered}`);
+
+  // Register Agent panel
+  Zotero.ItemPaneManager.registerSection({
+    paneID: `${addon.data.config.addonRef}-agent`,
+    pluginID: addon.data.config.addonID,
+    sidenav: {
+      icon: `chrome://${addon.data.config.addonRef}/content/icons/favicon.png`,
+      l10nID: getLocaleID("section-agent-sidenav-tooltip"),
+    },
+    header: {
+      icon: `chrome://${addon.data.config.addonRef}/content/icons/favicon.png`,
+      l10nID: getLocaleID("section-agent-head-text"),
+    },
+    onRender: ({ body, doc }) => {
+      renderAgentPanel({ body, doc });
+    },
+  });
 
   // Register item notifier
   const notifierCallback = {

@@ -15,3 +15,7 @@ ingest-error-no-metadata = Selected item has no title or abstract to ingest.
 # Wiki Browser
 section-wikibrowser-head-text = Wiki Browser
 section-wikibrowser-sidenav-tooltip = Browse and edit your LLM Wiki knowledge base
+
+# Agent Panel
+section-agent-head-text = Agent
+section-agent-sidenav-tooltip = Chat with your AI research assistant
