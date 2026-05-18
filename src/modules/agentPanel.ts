@@ -575,7 +575,8 @@ function buildSystemPrompt(): string {
 - Write in the same language the user uses.
 
 ## Wiki Enrichment
-- To add new information to a wiki page, use update_wiki_section
+- Whenever you discover information missing from the wiki, call update_wiki_section IMMEDIATELY after your answer — do NOT ask permission, just do it
+- If raw layer data has details the wiki lacks, enrich the relevant section proactively
 - Section names: "Research Question", "Method", "Key Findings", "Conclusions", "Limitations", "Related Work"`;
 }
 
