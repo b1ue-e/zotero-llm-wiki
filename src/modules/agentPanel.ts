@@ -208,11 +208,12 @@ function addAssistantMessage(text: string): void {
   el.className = "llmwiki-msg llmwiki-msg-assistant";
   try {
     const html = marked.parse(text) as string;
+    // Range.createContextualFragment properly parses HTML in XUL documents
     const range = state.doc.createRange();
     range.selectNodeContents(el);
-    const fragment = range.createContextualFragment(html);
-    el.appendChild(fragment);
+    el.appendChild(range.createContextualFragment(html));
   } catch (_e) {
+    // Fallback: plain text with preserved line breaks
     el.classList.add("llmwiki-msg-plain");
     el.textContent = text;
   }
