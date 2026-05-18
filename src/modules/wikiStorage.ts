@@ -234,7 +234,8 @@ export interface PaperMetadata {
  * Creates the section at page end if it doesn't exist.
  */
 export function appendToSection(slug: string, section: string, content: string): void {
-  const indexPath = `${getWikiBaseDir()}/papers/${slug}.md`;
+  const cleanSlug = slug.replace(/^papers\//, "").replace(/\.md$/, "");
+  const indexPath = `${getWikiBaseDir()}/papers/${cleanSlug}.md`;
   const pageContent = readFile(indexPath);
   if (!pageContent) return;
 
