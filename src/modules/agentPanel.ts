@@ -673,17 +673,31 @@ async function handleSend(): Promise<void> {
     // If raw layer was used, force wiki enrichment before the final answer
     if (rawDataUsed && response.content) {
       state.messages.push({
-        role: "tool",
-        tool_call_id: "enrich_wiki",
-        content: `You used raw layer data to answer the question. The wiki page for this paper is MISSING this information. Before giving your final answer, you MUST call update_wiki_section to add this knowledge to the wiki. Use the paper's slug and pick the most relevant section (Method, Key Findings, or Conclusions). Call update_wiki_section NOW.`,
+        role: "user",
+        content: "[System instruction] You used raw layer data to answer. The wiki is MISSING this information. Before your final answer, call update_wiki_section with the paper slug and the most relevant section name. If you don't know the exact slug, use the one from the search results.",
       });
       const enrichResponse = await callLLM(state.messages);
-      if (enrichResponse.content) {
-        // If LLM called update_wiki_section, that happened in the tool loop above.
-        // If it returned text (final answer), use that instead of original response.
-        if (!enrichResponse.tool_calls || enrichResponse.tool_calls.length === 0) {
-          response = enrichResponse;
+      if (enrichResponse.tool_calls && enrichResponse.tool_calls.length > 0) {
+        // LLM is calling update_wiki_section — execute it in another tool loop
+        let followup = enrichResponse;
+        let enrichRound = 0;
+        while (followup.tool_calls && followup.tool_calls.length > 0 && enrichRound < 3) {
+          enrichRound++;
+          state.messages.push({
+            role: "assistant",
+            content: followup.content || "",
+            tool_calls: followup.tool_calls,
+            ...followup.rawMessage,
+          } as ChatMessage);
+          for (const tc of followup.tool_calls) {
+            const result = await executeToolCall(tc);
+            state.messages.push({ role: "tool", tool_call_id: tc.id, content: result });
+          }
+          followup = await callLLM(state.messages);
         }
+        if (followup.content) response = followup;
+      } else if (enrichResponse.content) {
+        response = enrichResponse;
       }
     }
 
