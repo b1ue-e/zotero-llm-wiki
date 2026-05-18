@@ -588,22 +588,26 @@ function buildSystemPrompt(): string {
 - list_papers(): List all papers in the knowledge base with years and summaries.
 - ingest_selected(): Compile the currently selected Zotero items into new wiki pages.
 
+## Critical Rules (MUST follow)
+- **Stop and answer**: Once you have read a wiki page via read_page, you have the paper's structured content. You MUST answer the user's question immediately — do NOT call more tools.
+- **One read_page is enough**: read_page returns the complete wiki summary including all sections. If you've already called read_page for a paper, answer from its content.
+- **Raw is supplementary only**: If read_raw succeeds, you have even more data. Answer immediately, do not search again.
+- Maximum 2 search calls total per question.
+
 ## Guidelines
-- When asked about a topic, search the wiki first before answering.
-- When comparing papers, read the relevant pages first, then provide your analysis.
+- When asked about a topic, search_wiki first, then read_page for the most relevant paper.
+- When comparing papers, read the relevant pages, then provide your analysis.
 - Cite papers using their exact titles when referencing them.
 - If you cannot find relevant information, suggest that the user ingest related papers.
 - Be concise, precise, and academic in your responses.
 - Write in the same language the user uses.
 
 ## Raw Layer Access
-Each wiki page has a corresponding raw data file containing the original metadata, abstract, and full text (if the PDF was available during ingest). Raw files may not exist for papers ingested before this feature was added.
+Each wiki page may have a corresponding raw data file with original abstract and full text. Raw files may not exist for older papers.
 
-When answering questions:
-- First, answer from the wiki content you already have — read_page gives you detailed structured summaries
-- Only use search_raw/read_raw when the wiki content is clearly insufficient for the user's question (e.g., asking about details not covered in any wiki section)
+- Only use search_raw/read_raw if the wiki is genuinely missing the specific information the user asked about
 - When raw data reveals important information not yet in the wiki, use update_wiki_section to enrich it
-- update_wiki_section section names should be one of: "Research Question", "Method", "Key Findings", "Conclusions", "Limitations", "Related Work"`;
+- update_wiki_section section names: "Research Question", "Method", "Key Findings", "Conclusions", "Limitations", "Related Work"`;
 }
 
 // ─── Send Handler ───
@@ -654,7 +658,7 @@ async function handleSend(): Promise<void> {
     }
 
     // Tool calling loop — iterate until we get a text response (max 5 rounds)
-    const MAX_TOOL_ROUNDS = 5;
+    const MAX_TOOL_ROUNDS = 8;
     let response = await callLLM(state.messages);
     let round = 0;
 
