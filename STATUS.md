@@ -1,6 +1,6 @@
 # LLM-Wiki for Zotero — Development Status
 
-> 93 commits since MVP | Updated 2026-05-18
+> 100+ commits since MVP | Updated 2026-05-18
 
 ## Completed
 
@@ -42,6 +42,19 @@
 - [x] `update_wiki_section` tool in Agent toolset
 - [x] Auto wiki enrichment after raw content used
 
+### Phase 4: Concept/Entity Auto-Generation
+- [x] `conceptExtractor.ts` — second LLM call extracts concepts/entities from paper wiki
+- [x] Robust JSON parsing with 3-tier fallback (direct, ```json fence, inline array)
+- [x] Validation: max 3 concepts + 3 entities, slug sanitization
+- [x] `writeConceptPage()` — creates concept/entity pages with unified template
+- [x] LLM-based dedup merge when concept page already exists (Definition improvement)
+- [x] Fallback to simple text append if merge LLM call fails
+- [x] `appendSeeAlsoToPaper()` — bidirectional backlinks (paper → concept)
+- [x] `index.md` extended with `## Concepts` and `## Entities` sections
+- [x] `autoExtractConcepts` preference with UI checkbox (default true)
+- [x] Bilingual l10n (en-US / zh-CN) for all new UI strings
+- [x] Concept extraction failures are non-blocking (ingest still succeeds)
+
 ### Shared Infrastructure
 - [x] `xpcom.ts` — binary & UTF-8 file I/O, directory enumeration
 - [x] `wikiReader.ts` — shared data layer (search, read, save, parse)
@@ -61,16 +74,11 @@
 | Root `addon.ftl` missing newer l10n keys | Low | Locale files are synced but root template isn't |
 | Path traversal in `readPage`/`savePage` | Low | Only exploitable via crafted wikilinks |
 | `titleToSlug` strips non-ASCII chars | Low | Pre-existing; Chinese titles reduce to hash-only |
+| `wikiStorage.ts` readFile uses binary input | Medium | Non-ASCII characters may garble on read; xpcom.ts has correct UTF-8 version |
 
 ---
 
 ## Remaining (Future Iterations)
-
-### Concept/Entity Auto-Generation
-- LLM extracts key concepts and named entities during ingest
-- Auto-generate `concepts/<name>.md` and `entities/<name>.md`
-- Backlinks from concept pages to all referencing papers
-- Agent can navigate the knowledge graph
 
 ### Streaming Output
 - XHR `onprogress` + SSE parsing for real-time Agent responses
