@@ -597,12 +597,12 @@ function buildSystemPrompt(): string {
 - Write in the same language the user uses.
 
 ## Raw Layer Access
-Each wiki page has a corresponding raw data file containing the original metadata, abstract, and full text (if the PDF was available during ingest).
+Each wiki page has a corresponding raw data file containing the original metadata, abstract, and full text (if the PDF was available during ingest). Raw files may not exist for papers ingested before this feature was added.
 
 When answering questions:
-- If search_wiki returns few or no results, automatically try search_raw — it searches the original abstracts and full text which may contain information not captured in the structured wiki
-- If a wiki page lacks depth (e.g., sparse Method or Findings section), use read_raw to get the full original text, then answer from there
-- When raw data reveals important information that is not yet in the wiki, use update_wiki_section to enrich the wiki page so future queries benefit from it
+- First, answer from the wiki content you already have — read_page gives you detailed structured summaries
+- Only use search_raw/read_raw when the wiki content is clearly insufficient for the user's question (e.g., asking about details not covered in any wiki section)
+- When raw data reveals important information not yet in the wiki, use update_wiki_section to enrich it
 - update_wiki_section section names should be one of: "Research Question", "Method", "Key Findings", "Conclusions", "Limitations", "Related Work"`;
 }
 
