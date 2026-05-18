@@ -1,3 +1,4 @@
+import { marked } from "marked";
 import {
   searchPages,
   readPage,
@@ -9,6 +10,7 @@ import {
 } from "./wikiReader";
 import { runIngest } from "./ingest";
 import { getPref } from "../utils/prefs";
+import { getWikiBaseDir } from "../utils/xpcom";
 
 // ─── Types ───
 
@@ -118,7 +120,8 @@ export function renderAgentPanel({ body, doc }: { body: HTMLElement; doc: Docume
   // Welcome message
   const welcome = doc.createElement("div");
   welcome.className = "llmwiki-msg llmwiki-msg-assistant";
-  welcome.textContent = "Hello! I can search your wiki, read papers, list your library, and compile new papers. Ask me anything about your research.";
+  const wikiPath = getWikiBaseDir();
+  welcome.innerHTML = marked.parse(`Hello! I can search your wiki, read papers, list your library, and compile new papers. Ask me anything about your research.\n\nWiki files are stored at: \`${wikiPath}/\``) as string;
   messagesEl.appendChild(welcome);
 
   // Input area
@@ -168,7 +171,7 @@ function addAssistantMessage(text: string): void {
   if (!state.chatEl || !state.doc) return;
   const el = state.doc.createElement("div");
   el.className = "llmwiki-msg llmwiki-msg-assistant";
-  el.textContent = text;
+  el.innerHTML = marked.parse(text) as string;
   state.chatEl.appendChild(el);
   scrollToBottom();
 }
@@ -433,7 +436,7 @@ async function executeToolCall(tc: ToolCall): Promise<string> {
         const page = readPage(path);
         result = page
           ? `# ${page.frontmatter["title"] || path}\n\n${page.body}`
-          : `Page not found: ${path}`;
+          : `Page not found: "${args.slug}". Right-click a paper in Zotero and select "LLM Wiki: Ingest" to compile it first.`;
         break;
       }
       case "list_papers": {
