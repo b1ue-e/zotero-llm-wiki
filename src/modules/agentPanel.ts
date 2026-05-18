@@ -878,7 +878,7 @@ interface ToolCard {
   update(resultState: "complete" | "failed", detail: string): void;
 }
 
-function addToolCard(name: string, args: Record<string, unknown>): ToolCard {
+function addToolCard(name: string, _args: Record<string, unknown>): ToolCard {
   if (!state.chatEl || !state.doc) {
     return { el: state.doc ? state.doc.createElement("div") : ({} as HTMLElement), update: () => {} };
   }
@@ -895,8 +895,7 @@ function addToolCard(name: string, args: Record<string, unknown>): ToolCard {
   statusEl.textContent = "⏳";
 
   const label = doc.createElement("span");
-  const argStr = Object.entries(args).map(([k, v]) => `${k}=${JSON.stringify(v)}`).join(", ");
-  label.textContent = `${name}(${argStr})`;
+  label.textContent = name;
 
   header.appendChild(statusEl);
   header.appendChild(label);
