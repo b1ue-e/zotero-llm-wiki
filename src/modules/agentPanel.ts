@@ -90,6 +90,25 @@ const AGENT_CSS = `
     var(--fill-quaternary, #e0e0e0); display: none; font-family: monospace;
     font-size: 11px; max-height: 200px; overflow-y: auto; white-space: pre-wrap; }
   .llmwiki-tool-card.open .llmwiki-tool-card-body { display: block; }
+  .llmwiki-msg p { margin: 4px 0; }
+  .llmwiki-msg ul, .llmwiki-msg ol { margin: 4px 0; padding-left: 20px; }
+  .llmwiki-msg li { margin: 2px 0; }
+  .llmwiki-msg strong { font-weight: 600; }
+  .llmwiki-msg em { font-style: italic; }
+  .llmwiki-msg code { background: rgba(0,0,0,0.08); padding: 1px 4px;
+    border-radius: 3px; font-family: monospace; font-size: 12px; }
+  .llmwiki-msg pre { background: rgba(0,0,0,0.06); padding: 8px; border-radius: 4px;
+    overflow-x: auto; margin: 4px 0; }
+  .llmwiki-msg pre code { background: none; padding: 0; }
+  .llmwiki-msg h1, .llmwiki-msg h2, .llmwiki-msg h3, .llmwiki-msg h4
+    { margin: 8px 0 4px; font-weight: 600; }
+  .llmwiki-msg h1 { font-size: 1.2em; }
+  .llmwiki-msg h2 { font-size: 1.1em; }
+  .llmwiki-msg h3 { font-size: 1em; }
+  .llmwiki-msg blockquote { border-left: 3px solid var(--fill-quaternary, #ccc);
+    margin: 4px 0; padding: 2px 8px; color: var(--text-secondary, #666); }
+  .llmwiki-msg hr { border: none; border-top: 1px solid var(--fill-quaternary, #ddd);
+    margin: 8px 0; }
   .llmwiki-thinking { align-self: flex-start; color: var(--text-secondary, #999);
     font-size: 13px; padding: 8px 12px; }
 `;
