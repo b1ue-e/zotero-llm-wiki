@@ -115,7 +115,11 @@ function updateRawIndex(entry: RawIndexEntry): void {
 
 // ─── Search ───
 
+// Track search calls to offset into different fulltext sections
+let _searchCallCount = 0;
+
 export function searchRaw(query: string): SearchResult[] {
+  _searchCallCount++;
   const results: SearchResult[] = [];
   const q = query.toLowerCase();
   const queryWords = q.split(/\s+/).filter((w: string) => w.length > 1);
@@ -151,7 +155,13 @@ export function searchRaw(query: string): SearchResult[] {
         source = raw.fulltext || source;
         matchWord = queryWords.find((w: string) => source.toLowerCase().includes(w)) || queryWords[0];
       }
-      const matchIdx = source.toLowerCase().indexOf(matchWord);
+      // Find multiple occurrences — advance through text on repeated calls
+      let matchIdx = source.toLowerCase().indexOf(matchWord);
+      for (let skip = 0; skip < _searchCallCount % 20; skip++) {
+        const next = source.toLowerCase().indexOf(matchWord, matchIdx + 1);
+        if (next === -1) break;
+        matchIdx = next;
+      }
       const start = Math.max(0, matchIdx - 3000);
       const end = Math.min(source.length, matchIdx + matchWord.length + 7000);
       const snippet = (start > 0 ? "…" : "") +

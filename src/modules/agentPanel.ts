@@ -632,7 +632,7 @@ async function handleSend(): Promise<void> {
     let response = await callLLM(state.messages);
     let round = 0;
     let searchCount = 0;
-    const MAX_SEARCHES = 3;
+    const MAX_SEARCHES = 5;
 
     while (response.tool_calls && response.tool_calls.length > 0 && round < MAX_TOOL_ROUNDS) {
       round++;
