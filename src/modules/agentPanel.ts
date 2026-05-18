@@ -171,7 +171,12 @@ function addAssistantMessage(text: string): void {
   if (!state.chatEl || !state.doc) return;
   const el = state.doc.createElement("div");
   el.className = "llmwiki-msg llmwiki-msg-assistant";
-  el.innerHTML = marked.parse(text) as string;
+  try {
+    el.innerHTML = marked.parse(text) as string;
+  } catch (_e) {
+    // Fall back to plain text if markdown parsing or innerHTML fails
+    el.textContent = text;
+  }
   state.chatEl.appendChild(el);
   scrollToBottom();
 }
