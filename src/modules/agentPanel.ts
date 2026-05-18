@@ -614,6 +614,24 @@ async function handleSend(): Promise<void> {
   if (!text) return;
 
   state.inputEl.value = "";
+
+  // ─── Slash Commands ───
+
+  if (text === "/clear") {
+    state.messages = [];
+    clearChatDOM();
+    state.busy = false;
+    updateSendButton();
+    return;
+  }
+
+  if (text === "/compact") {
+    compactConversation();
+    state.busy = false;
+    updateSendButton();
+    return;
+  }
+
   state.busy = true;
   updateSendButton();
 
@@ -675,6 +693,45 @@ async function handleSend(): Promise<void> {
 
   state.busy = false;
   updateSendButton();
+}
+
+// ─── Slash Commands ───
+
+function clearChatDOM(): void {
+  if (!state.chatEl || !state.doc) return;
+  while (state.chatEl.firstChild) state.chatEl.removeChild(state.chatEl.firstChild);
+  const welcome = state.doc.createElement("div");
+  welcome.className = "llmwiki-msg llmwiki-msg-assistant";
+  const wikiPath = getWikiBaseDir();
+  renderMarkdownTo(welcome, `Conversation cleared.\n\nHello! I can search your wiki, read papers, list your library, and compile new papers. Ask me anything about your research.\n\nWiki files are stored at: \`${wikiPath}/\``);
+  state.chatEl.appendChild(welcome);
+}
+
+function compactConversation(): void {
+  if (!state.chatEl || !state.doc) return;
+  // Keep system prompt + last 3 exchanges (6 messages)
+  const systemMsg = state.messages[0]?.role === "system" ? [state.messages[0]] : [];
+  const recentMsgs = state.messages.slice(-6);
+  const dropped = state.messages.length - systemMsg.length - recentMsgs.length;
+  state.messages = [...systemMsg, ...recentMsgs];
+
+  // Rebuild chat DOM
+  while (state.chatEl.firstChild) state.chatEl.removeChild(state.chatEl.firstChild);
+
+  const summary = state.doc.createElement("div");
+  summary.className = "llmwiki-msg llmwiki-msg-system";
+  summary.textContent = dropped > 0
+    ? `Compacted: dropped ${dropped} older messages, kept last ${recentMsgs.length}`
+    : "Nothing to compact";
+  state.chatEl.appendChild(summary);
+
+  // Re-render kept messages
+  let first = true;
+  for (const msg of state.messages) {
+    if (msg.role === "system") continue;
+    if (msg.role === "user") addUserMessage(msg.content);
+    else if (msg.role === "assistant") addAssistantMessage(msg.content);
+  }
 }
 
 function updateSendButton(): void {
