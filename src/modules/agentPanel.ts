@@ -10,7 +10,7 @@ import {
 import { runIngest } from "./ingest";
 import { getPref } from "../utils/prefs";
 import { getWikiBaseDir, writeFile, makeDir } from "../utils/xpcom";
-import { searchRaw, readRaw } from "./rawStorage";
+import { searchRaw } from "./rawStorage";
 import { appendToSection } from "./wikiStorage";
 
 // ─── Types ───
@@ -534,34 +534,6 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     type: "function",
     function: {
-      name: "search_raw",
-      description: "Full-text search across raw paper data (original abstracts and full text). Use when search_wiki returns insufficient results, or when you need to find information from the original paper text that may not be in the structured wiki.",
-      parameters: {
-        type: "object",
-        properties: {
-          query: { type: "string", description: "Search query" },
-        },
-        required: ["query"],
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "read_raw",
-      description: "Read the complete raw data of a paper by its slug, including original abstract and full text if available.",
-      parameters: {
-        type: "object",
-        properties: {
-          slug: { type: "string", description: "Paper slug (e.g., 'papers/title-hash' or just 'title-hash')" },
-        },
-        required: ["slug"],
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
       name: "update_wiki_section",
       description: "Append new information to a specific section of a wiki page. Use this when raw data contains important knowledge not yet captured in the structured wiki page.",
       parameters: {
@@ -589,25 +561,22 @@ function buildSystemPrompt(): string {
 - ingest_selected(): Compile the currently selected Zotero items into new wiki pages.
 
 ## Critical Rules (MUST follow)
-- **Stop and answer**: Once you have read a wiki page via read_page, you have the paper's structured content. You MUST answer the user's question immediately — do NOT call more tools.
-- **One read_page is enough**: read_page returns the complete wiki summary including all sections. If you've already called read_page for a paper, answer from its content.
-- **Raw is supplementary only**: If read_raw succeeds, you have even more data. Answer immediately, do not search again.
-- Maximum 2 search calls total per question.
+- **Stop and answer**: After calling read_page, you have the paper's complete structured summary. Answer the user's question IMMEDIATELY — do NOT call more tools.
+- **One page is enough**: read_page returns all wiki sections. If the answer is in there, just answer.
+- **Maximum 3 tool calls total per question**, then you MUST answer with what you have.
+- search_wiki also searches the raw paper data automatically — no extra calls needed.
 
 ## Guidelines
-- When asked about a topic, search_wiki first, then read_page for the most relevant paper.
+- search_wiki first, then read_page for the most relevant paper.
 - When comparing papers, read the relevant pages, then provide your analysis.
 - Cite papers using their exact titles when referencing them.
 - If you cannot find relevant information, suggest that the user ingest related papers.
 - Be concise, precise, and academic in your responses.
 - Write in the same language the user uses.
 
-## Raw Layer Access
-Each wiki page may have a corresponding raw data file with original abstract and full text. Raw files may not exist for older papers.
-
-- Only use search_raw/read_raw if the wiki is genuinely missing the specific information the user asked about
-- When raw data reveals important information not yet in the wiki, use update_wiki_section to enrich it
-- update_wiki_section section names: "Research Question", "Method", "Key Findings", "Conclusions", "Limitations", "Related Work"`;
+## Wiki Enrichment
+- To add new information to a wiki page, use update_wiki_section
+- Section names: "Research Question", "Method", "Key Findings", "Conclusions", "Limitations", "Related Work"`;
 }
 
 // ─── Send Handler ───
@@ -845,34 +814,6 @@ async function executeToolCall(tc: ToolCall): Promise<string> {
             ? "No regular items selected."
             : `Compiled ${titles.length} paper(s):\n${titles.map((t: string) => `- ${t}`).join("\n")}`;
         }
-        break;
-      }
-      case "search_raw": {
-        const hits = searchRaw(args.query || "");
-        result = hits.length === 0
-          ? `No results found in raw layer for "${args.query}".`
-          : hits.map((h) =>
-              `- **${h.title}** (${h.slug})\n  ${h.snippet}`
-            ).join("\n\n");
-        break;
-      }
-      case "read_raw": {
-        const rawSlug = (args.slug || "").replace(/\.md$/, "");
-        const rawSlugClean = rawSlug.includes("/") ? rawSlug.split("/").pop()! : rawSlug;
-        const raw = readRaw(rawSlugClean);
-        result = raw
-          ? [
-              `# ${raw.title}`,
-              `Authors: ${raw.authors}`,
-              `Year: ${raw.year}`,
-              raw.doi ? `DOI: ${raw.doi}` : "",
-              "",
-              `## Abstract`,
-              raw.abstract || "(no abstract)",
-              "",
-              raw.fulltext ? `## Full Text\n${raw.fulltext.slice(0, 5000)}${raw.fulltext.length > 5000 ? "\n...(truncated)" : ""}` : "(no full text available)",
-            ].join("\n")
-          : `Raw data not found for: ${args.slug}. Try ingesting this paper first.`;
         break;
       }
       case "update_wiki_section": {
