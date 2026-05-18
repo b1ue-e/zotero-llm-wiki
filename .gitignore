@@ -22,11 +22,15 @@ logs
 /addon.ftl
 
 # Docs / planning
-docs/*
-!docs/superpowers/
+docs/
+
+# Brainstorm data
+.superpowers/
+
+# Project status (local only)
+/STATUS.md
 
 # IDE
 .vscode/
 .idea/
 *.swp
-# /STATUS.md (tracked — project status)
