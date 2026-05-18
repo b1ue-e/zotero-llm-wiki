@@ -106,7 +106,14 @@ function decompressGzip(raw: string): string | null {
     // @ts-expect-error - XPCOM
     const inputStream = Components.classes["@mozilla.org/io/string-input-stream;1"]
       .createInstance(Components.interfaces.nsIStringInputStream);
-    inputStream.setData(raw, raw.length);
+    // Firefox 115: use adoptData or setByteStringData (setData is deprecated)
+    if (typeof (inputStream as any).adoptData === "function") {
+      (inputStream as any).adoptData(raw, raw.length);
+    } else if (typeof (inputStream as any).setByteStringData === "function") {
+      (inputStream as any).setByteStringData(raw);
+    } else {
+      (inputStream as any).setUTF8String(raw);
+    }
 
     // @ts-expect-error - XPCOM
     const gzipConverter = Components.classes["@mozilla.org/streamconv;1?from=gzip&to=uncompressed"]
