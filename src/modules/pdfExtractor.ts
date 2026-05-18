@@ -1,4 +1,4 @@
-import { readFile } from "../utils/xpcom";
+import { readFile, readBinaryFile } from "../utils/xpcom";
 
 /**
  * Extract fulltext from a Zotero item's PDF attachments.
@@ -31,7 +31,7 @@ export async function extractFulltext(item: Zotero.Item): Promise<string | null>
         const cacheFile = Zotero.Fulltext.getItemCacheFile(item);
         Zotero.debug(`[llmwiki] pdfExtractor: cacheFile exists=${cacheFile?.exists()}`);
         if (cacheFile?.exists()) {
-          const raw = readFile(cacheFile.path);
+          const raw = readBinaryFile(cacheFile.path);
           Zotero.debug(`[llmwiki] pdfExtractor: cacheFile path=${cacheFile.path} size=${raw?.length || 0}`);
           if (raw) {
             // Try zlib decompression (Zotero stores gzipped data)
@@ -49,7 +49,7 @@ export async function extractFulltext(item: Zotero.Item): Promise<string | null>
         const filePath = att.getFilePath?.() || att._path;
         Zotero.debug(`[llmwiki] pdfExtractor: PDF filePath=${filePath}`);
         if (filePath) {
-          const pdfBytes = readFile(filePath);
+          const pdfBytes = readBinaryFile(filePath);
           Zotero.debug(`[llmwiki] pdfExtractor: PDF file size=${pdfBytes?.length || 0}`);
           if (pdfBytes && pdfBytes.length > 100) {
             const text = extractTextFromRawPDF(pdfBytes);

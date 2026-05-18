@@ -69,6 +69,26 @@ function readFile(path: string): string | null {
   return str.value;
 }
 
+function readBinaryFile(path: string): string | null {
+  // @ts-expect-error - Mozilla XPCOM
+  const file = Components.classes["@mozilla.org/file/local;1"]
+    .createInstance(Components.interfaces.nsIFile) as any;
+  file.initWithPath(path);
+  if (!file.exists()) return null;
+  // @ts-expect-error - Mozilla XPCOM
+  const stream = Components.classes["@mozilla.org/network/file-input-stream;1"]
+    .createInstance(Components.interfaces.nsIFileInputStream) as any;
+  stream.init(file, 0x01, 0o644, 0);
+  const available = stream.available();
+  // @ts-expect-error - Mozilla XPCOM
+  const data = Components.classes["@mozilla.org/binaryinputstream;1"]
+    .createInstance(Components.interfaces.nsIBinaryInputStream) as any;
+  data.setInputStream(stream);
+  const text = data.readBytes(available);
+  stream.close();
+  return text;
+}
+
 function listDir(path: string): string[] {
   // @ts-expect-error - Mozilla XPCOM
   const dir = Components.classes["@mozilla.org/file/local;1"]
@@ -111,6 +131,7 @@ export {
   makeDir,
   writeFile,
   readFile,
+  readBinaryFile,
   listDir,
   fileExists,
   ensureDirs,
