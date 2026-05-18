@@ -116,10 +116,10 @@ function decompressGzip(raw: string): string | null {
     }
 
     // @ts-expect-error - XPCOM
-    const gzipConverter = Components.classes["@mozilla.org/streamconv;1?from=gzip&to=uncompressed"]
-      .getService(Components.interfaces.nsIStreamConverter);
+    const converterService = Components.classes["@mozilla.org/streamConverters;1"]
+      .getService(Components.interfaces.nsIStreamConverterService);
 
-    const convertedStream = gzipConverter.convert(inputStream);
+    const convertedStream = (converterService as any).convert(inputStream, "gzip", "uncompressed", null);
 
     // @ts-expect-error - XPCOM
     const scriptableStream = Components.classes["@mozilla.org/scriptableinputstream;1"]
