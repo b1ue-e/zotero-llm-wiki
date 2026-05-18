@@ -1,67 +1,37 @@
-import { readFile, readBinaryFile } from "../utils/xpcom";
+import { readBinaryFile } from "../utils/xpcom";
+import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
 
 /**
- * Extract fulltext from a Zotero item's PDF attachments.
+ * Extract fulltext from a Zotero item's PDF attachments using pdf.js.
  * Returns null if no PDF found or extraction fails — does NOT block ingest.
  */
 export async function extractFulltext(item: Zotero.Item): Promise<string | null> {
   try {
-    // Get attachment IDs
     const attachmentIDs: number[] = item.getAttachments?.() || [];
-    Zotero.debug(`[llmwiki] pdfExtractor: item has ${attachmentIDs.length} attachments`);
-
     if (attachmentIDs.length === 0) return null;
 
-    // Find PDF attachments
     for (const attID of attachmentIDs) {
       const att = Zotero.Items.get(attID);
       if (!att) continue;
 
-      // Check if this is a PDF
       const ct = (att as any).attachmentContentType
         || att.getField?.("contentType")
         || (att as any).attachmentMIMEType
         || "";
-      Zotero.debug(`[llmwiki] pdfExtractor: attID=${attID} contentType="${ct}"`);
-
       if (ct !== "application/pdf") continue;
 
-      // Strategy 1: Zotero.Fulltext cache
-      try {
-        const cacheFile = Zotero.Fulltext.getItemCacheFile(item);
-        Zotero.debug(`[llmwiki] pdfExtractor: cacheFile exists=${cacheFile?.exists()}`);
-        if (cacheFile?.exists()) {
-          const raw = readBinaryFile(cacheFile.path);
-          Zotero.debug(`[llmwiki] pdfExtractor: cacheFile path=${cacheFile.path} size=${raw?.length || 0}`);
-          if (raw) {
-            // Try zlib decompression (Zotero stores gzipped data)
-            const text = decompressCacheData(raw);
-            if (text && text.trim().length > 100) return text;
-          }
-        }
-      } catch (e: any) {
-        Zotero.debug(`[llmwiki] pdfExtractor: cache strategy failed: ${e.message || e}`);
-      }
-
-      // Strategy 2: Read PDF file directly
       try {
         // @ts-expect-error - Zotero attachment path
         const filePath = att.getFilePath?.() || att._path;
-        Zotero.debug(`[llmwiki] pdfExtractor: PDF filePath=${filePath}`);
-        if (filePath) {
-          const pdfBytes = readBinaryFile(filePath);
-          Zotero.debug(`[llmwiki] pdfExtractor: PDF file size=${pdfBytes?.length || 0}`);
-          if (pdfBytes && pdfBytes.length > 100) {
-            const text = extractTextFromRawPDF(pdfBytes);
-            if (text && text.trim().length > 100) return text;
-          }
-        }
+        if (!filePath) continue;
+
+        const text = await extractPdfText(filePath);
+        if (text && text.trim().length > 100) return text;
       } catch (e: any) {
-        Zotero.debug(`[llmwiki] pdfExtractor: file read strategy failed: ${e.message || e}`);
+        Zotero.debug(`[llmwiki] pdfExtractor: pdf.js failed: ${e.message || e}`);
       }
     }
 
-    Zotero.debug("[llmwiki] pdfExtractor: no text extracted");
     return null;
   } catch (_e) {
     return null;
@@ -69,53 +39,33 @@ export async function extractFulltext(item: Zotero.Item): Promise<string | null>
 }
 
 /**
- * Try to decompress Zotero's fulltext cache data (gzip format).
+ * Extract text from a PDF file using pdf.js.
  */
-function decompressCacheData(raw: string): string {
-  // The cache is gzip-compressed. Try to decompress.
-  // In Firefox sandbox, we can use nsIStringInputStream + nsIGZIPReader
-  try {
-    // @ts-expect-error - XPCOM
-    const stream = Components.classes["@mozilla.org/io/string-input-stream;1"]
-      .createInstance(Components.interfaces.nsIStringInputStream);
-    stream.setData(raw, raw.length);
-    // @ts-expect-error - XPCOM
-    const gzip = Components.classes["@mozilla.org/streamconv;1?from=gzip&to=uncompressed"]
-      .getService(Components.interfaces.nsIStreamConverter);
-    // @ts-expect-error - XPCOM
-    const unzipped = Components.classes["@mozilla.org/scriptableinputstream;1"]
-      .createInstance(Components.interfaces.nsIScriptableInputStream);
-    unzipped.init(gzip.convert(stream));
-    return unzipped.read(unzipped.available());
-  } catch (_e) {
-    // gzip failed, try plain text extraction
-    const cleaned = raw.replace(/[^\x20-\x7E -￿\s]/g, " ");
-    const words = cleaned.split(/\s+/).filter((w: string) => w.length > 2).join(" ");
-    return words.length > 100 ? words : "";
-  }
-}
+async function extractPdfText(filePath: string): Promise<string> {
+  // Read binary data
+  const raw = readBinaryFile(filePath);
+  if (!raw || raw.length < 100) return "";
 
-/**
- * Extract readable text from raw PDF bytes.
- */
-function extractTextFromRawPDF(raw: string): string {
-  // Try BT/ET text blocks
-  const textBlocks: string[] = [];
-  const btRegex = /BT\s*([\s\S]*?)\s*ET/g;
-  let match: RegExpExecArray | null;
-  while ((match = btRegex.exec(raw)) !== null) {
-    const strings = match[1].match(/\(([^)]*)\)/g);
-    if (strings) {
-      for (const s of strings) {
-        textBlocks.push(s.slice(1, -1));
-      }
-    }
+  // Convert binary string to Uint8Array
+  const len = raw.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = raw.charCodeAt(i) & 0xff;
   }
-  if (textBlocks.length > 0) {
-    return textBlocks.join(" ").replace(/\s+/g, " ").trim();
+
+  // Load and parse PDF
+  const doc = await pdfjsLib.getDocument({ data: bytes }).promise;
+  const pages: string[] = [];
+
+  for (let pageNum = 1; pageNum <= Math.min(doc.numPages, 50); pageNum++) {
+    const page = await doc.getPage(pageNum);
+    const content = await page.getTextContent();
+    const pageText = content.items
+      .map((item: any) => item.str || "")
+      .filter((s: string) => s.trim().length > 0)
+      .join(" ");
+    if (pageText.trim()) pages.push(pageText);
   }
-  // Fallback: filter to printable ASCII
-  const cleaned = raw.replace(/[^\x20-\x7E\s\n]/g, "");
-  const words = cleaned.split(/\s+/).filter((w: string) => w.length > 2).join(" ");
-  return words.length > 100 ? words : "";
+
+  return pages.join("\n\n");
 }
