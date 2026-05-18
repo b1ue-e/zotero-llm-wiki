@@ -1,5 +1,17 @@
 import { readBinaryFile } from "../utils/xpcom";
-import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
+
+// Lazy-loaded pdf.js — loaded on first use to avoid init errors crashing the plugin
+let _pdfjsLib: any = null;
+async function getPdfjsLib(): Promise<any> {
+  if (_pdfjsLib) return _pdfjsLib;
+  try {
+    _pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
+    return _pdfjsLib;
+  } catch (e: any) {
+    Zotero.debug(`[llmwiki] pdfExtractor: failed to load pdf.js: ${e.message || e}`);
+    return null;
+  }
+}
 
 /**
  * Extract fulltext from a Zotero item's PDF attachments using pdf.js.
@@ -9,6 +21,9 @@ export async function extractFulltext(item: Zotero.Item): Promise<string | null>
   try {
     const attachmentIDs: number[] = item.getAttachments?.() || [];
     if (attachmentIDs.length === 0) return null;
+
+    const pdfjsLib = await getPdfjsLib();
+    if (!pdfjsLib) return null;
 
     for (const attID of attachmentIDs) {
       const att = Zotero.Items.get(attID);
@@ -25,7 +40,7 @@ export async function extractFulltext(item: Zotero.Item): Promise<string | null>
         const filePath = att.getFilePath?.() || att._path;
         if (!filePath) continue;
 
-        const text = await extractPdfText(filePath);
+        const text = await extractPdfText(pdfjsLib, filePath);
         if (text && text.trim().length > 100) return text;
       } catch (e: any) {
         Zotero.debug(`[llmwiki] pdfExtractor: pdf.js failed: ${e.message || e}`);
@@ -38,22 +53,16 @@ export async function extractFulltext(item: Zotero.Item): Promise<string | null>
   }
 }
 
-/**
- * Extract text from a PDF file using pdf.js.
- */
-async function extractPdfText(filePath: string): Promise<string> {
-  // Read binary data
+async function extractPdfText(pdfjsLib: any, filePath: string): Promise<string> {
   const raw = readBinaryFile(filePath);
   if (!raw || raw.length < 100) return "";
 
-  // Convert binary string to Uint8Array
   const len = raw.length;
   const bytes = new Uint8Array(len);
   for (let i = 0; i < len; i++) {
     bytes[i] = raw.charCodeAt(i) & 0xff;
   }
 
-  // Load and parse PDF
   const doc = await pdfjsLib.getDocument({ data: bytes }).promise;
   const pages: string[] = [];
 
