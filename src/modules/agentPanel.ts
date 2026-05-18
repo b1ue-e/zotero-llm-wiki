@@ -75,6 +75,7 @@ const AGENT_CSS = `
   #llmwiki-agent-send:hover:not(:disabled) { opacity: 0.9; }
   .llmwiki-msg { max-width: 85%; padding: 8px 12px; border-radius: 8px; font-size: 13px;
     line-height: 1.5; word-wrap: break-word; }
+  .llmwiki-msg-plain { white-space: pre-wrap; }
   .llmwiki-msg-user { align-self: flex-end;
     background: var(--accent-selected, #0060df); color: #fff; }
   .llmwiki-msg-assistant { align-self: flex-start;
@@ -196,6 +197,7 @@ function addAssistantMessage(text: string): void {
   try {
     el.innerHTML = marked.parse(text) as string;
   } catch (_e) {
+    el.setAttribute("class", "llmwiki-msg llmwiki-msg-assistant llmwiki-msg-plain");
     el.textContent = text;
   }
   state.chatEl.appendChild(el);
