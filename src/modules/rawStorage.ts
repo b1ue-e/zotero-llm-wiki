@@ -155,13 +155,12 @@ export function searchRaw(query: string): SearchResult[] {
         source = raw.fulltext || source;
         matchWord = queryWords.find((w: string) => source.toLowerCase().includes(w)) || queryWords[0];
       }
-      // Find multiple occurrences — advance through text on repeated calls
-      let matchIdx = source.toLowerCase().indexOf(matchWord);
-      for (let skip = 0; skip < _searchCallCount % 20; skip++) {
-        const next = source.toLowerCase().indexOf(matchWord, matchIdx + 1);
-        if (next === -1) break;
-        matchIdx = next;
-      }
+      // Jump to different fulltext section each call (10KB stride)
+      const stride = 10000;
+      const offset = (_searchCallCount * stride) % source.length;
+      // Find first matching word at or after the offset
+      let matchIdx = source.toLowerCase().indexOf(matchWord, offset);
+      if (matchIdx === -1) matchIdx = offset; // fallback to position offset
       const start = Math.max(0, matchIdx - 1500);
       const end = Math.min(source.length, matchIdx + matchWord.length + 3500);
       const snippet = (start > 0 ? "…" : "") +
