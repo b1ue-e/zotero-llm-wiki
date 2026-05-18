@@ -627,10 +627,12 @@ async function handleSend(): Promise<void> {
       state.messages.unshift({ role: "system", content: buildSystemPrompt() });
     }
 
-    // Tool calling loop — iterate until we get a text response (max 5 rounds)
-    const MAX_TOOL_ROUNDS = 8;
+    // Tool calling loop — iterate until we get a text response
+    const MAX_TOOL_ROUNDS = 10;
     let response = await callLLM(state.messages);
     let round = 0;
+    let searchCount = 0;
+    const MAX_SEARCHES = 3;
 
     while (response.tool_calls && response.tool_calls.length > 0 && round < MAX_TOOL_ROUNDS) {
       round++;
@@ -644,6 +646,15 @@ async function handleSend(): Promise<void> {
 
       // Execute tools
       for (const tc of response.tool_calls) {
+        if ((tc.function.name === "search_wiki" || tc.function.name === "search_raw") && searchCount >= MAX_SEARCHES) {
+          state.messages.push({
+            role: "tool",
+            tool_call_id: tc.id,
+            content: "Search limit reached. You have enough information — please answer the user's question NOW based on what you already know.",
+          });
+          continue;
+        }
+        if (tc.function.name === "search_wiki" || tc.function.name === "search_raw") searchCount++;
         const result = await executeToolCall(tc);
         state.messages.push({
           role: "tool",
