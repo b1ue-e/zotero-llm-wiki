@@ -2,6 +2,9 @@ import { callLLM } from "./llmProvider";
 import { buildSystemPrompt, buildUserPrompt, writeWikiPage, PaperMetadata } from "./wikiStorage";
 import { getString } from "../utils/locale";
 import type { FluentMessageId } from "../../typings/i10n";
+import { writeRaw } from "./rawStorage";
+import { extractFulltext } from "./pdfExtractor";
+import { titleToSlug } from "../utils/sanitize";
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => {
@@ -19,6 +22,23 @@ export async function runIngest(item: Zotero.Item): Promise<void> {
     showNotification(getString("ingest-error-no-metadata"), "warning");
     return;
   }
+
+  // Write raw layer before LLM call (preserves original data)
+  const slug = titleToSlug(metadata.title);
+  const fulltext = await extractFulltext(item);
+  writeRaw(slug, {
+    title: metadata.title,
+    authors: metadata.authors || "",
+    abstract: metadata.abstract || "",
+    year: metadata.year || "",
+    publication: metadata.publication || "",
+    doi: metadata.doi || "",
+    fulltext,
+    wiki_slug: `papers/${slug}`,
+    ingested_at: new Date().toISOString().slice(0, 10),
+    updated_at: new Date().toISOString().slice(0, 10),
+  });
+  Zotero.debug(`[llmwiki] raw JSON saved for ${slug}`);
 
   const progress = new ztoolkit.ProgressWindow(addon.data.config.addonName)
     .createLine({
