@@ -678,29 +678,17 @@ async function handleSend(): Promise<void> {
       });
       const enrichResponse = await callLLM(state.messages);
       if (enrichResponse.tool_calls && enrichResponse.tool_calls.length > 0) {
-        // LLM is calling update_wiki_section — execute it in another tool loop
-        let followup = enrichResponse;
-        let enrichRound = 0;
-        while (followup.tool_calls && followup.tool_calls.length > 0 && enrichRound < 3) {
-          enrichRound++;
-          state.messages.push({
-            role: "assistant",
-            content: followup.content || "",
-            tool_calls: followup.tool_calls,
-            ...followup.rawMessage,
-          } as ChatMessage);
-          for (const tc of followup.tool_calls) {
-            const result = await executeToolCall(tc);
-            state.messages.push({ role: "tool", tool_call_id: tc.id, content: result });
+        // Save the answer the LLM already gave alongside the tool call
+        const savedAnswer = enrichResponse.content;
+        // Execute the tool call(s) but don't feed back to LLM — just silently update wiki
+        for (const tc of enrichResponse.tool_calls) {
+          if (tc.function.name === "update_wiki_section") {
+            await executeToolCall(tc);
           }
-          followup = await callLLM(state.messages);
         }
-        if (followup.content) {
-          // After wiki update, ask for the answer to original question
-          state.messages.push({ role: "assistant", content: followup.content, ...followup.rawMessage } as ChatMessage);
-          state.messages.push({ role: "user", content: "Now answer the user's original question based on all the information you have." });
-          const finalAnswer = await callLLM(state.messages);
-          if (finalAnswer.content) response = finalAnswer;
+        // Use the saved answer as the response — no extra LLM calls
+        if (savedAnswer) {
+          response = { content: savedAnswer, tool_calls: null, rawMessage: enrichResponse.rawMessage };
         }
       } else if (enrichResponse.content) {
         response = enrichResponse;
