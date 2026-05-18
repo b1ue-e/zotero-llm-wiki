@@ -108,8 +108,14 @@ const AGENT_CSS = `
   .llmwiki-msg h3 { font-size: 1em; }
   .llmwiki-msg blockquote { border-left: 3px solid var(--fill-quaternary, #ccc);
     margin: 4px 0; padding: 2px 8px; color: var(--text-secondary, #666); }
-  .llmwiki-msg hr { border: none; border-top: 1px solid var(--fill-quaternary, #ddd);
-    margin: 8px 0; }
+  .llmwiki-msg hr { border: none; border-top: 2px solid rgba(0,0,0,0.15);
+    margin: 12px 0; }
+  .llmwiki-msg table { border-collapse: collapse; width: 100%; margin: 8px 0;
+    font-size: 12px; }
+  .llmwiki-msg th, .llmwiki-msg td { border: 1px solid rgba(0,0,0,0.15);
+    padding: 4px 8px; text-align: left; }
+  .llmwiki-msg th { background: rgba(0,0,0,0.06); font-weight: 600; }
+  .llmwiki-msg tr:nth-child(even) td { background: rgba(0,0,0,0.03); }
   .llmwiki-thinking { align-self: flex-start; color: var(--text-secondary, #999);
     font-size: 13px; padding: 8px 12px; }
 `;
