@@ -111,7 +111,11 @@ function listDir(path: string): string[] {
   // @ts-expect-error - Mozilla XPCOM
   const dir = Components.classes["@mozilla.org/file/local;1"]
     .createInstance(Components.interfaces.nsIFile) as any;
-  dir.initWithPath(path);
+  try {
+    dir.initWithPath(path);
+  } catch {
+    return [];
+  }
   if (!dir.exists() || !dir.isDirectory()) return [];
   const enumerator = dir.directoryEntries;
   const result: string[] = [];
