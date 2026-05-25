@@ -22,7 +22,9 @@ logs
 /addon.ftl
 
 # Docs / planning
-docs/
+docs/*
+!docs/superpowers/
+!docs/project-retrospective.md
 
 # Brainstorm data
 .superpowers/
