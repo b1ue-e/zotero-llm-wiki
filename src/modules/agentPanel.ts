@@ -62,6 +62,8 @@ const state: AgentState = {
 let _rawFlag = false;
 let _deepResearchMode = false;
 let _researchTrace: ResearchTrace = { initial_query: "", steps: [] };
+const _toolCards: ToolCard[] = [];
+let _roundSummaryEl: HTMLElement | null = null;
 
 const MAX_TOOL_ROUNDS_NORMAL = 10;
 const MAX_SEARCHES_NORMAL = 5;
@@ -93,11 +95,11 @@ const AGENT_CSS = `
     background: #dcf8c6; color: #222; }
   .llmwiki-msg-system { align-self: center; font-size: 12px;
     color: var(--text-secondary, #999); padding: 4px 8px; max-width: 100%; }
-  .llmwiki-tool-card { background: var(--fill-tertiary, #f5f5f5); border-radius: 6px;
-    margin: 4px 0; font-size: 12px; overflow: hidden; }
-  .llmwiki-tool-card-header { display: flex; align-items: center; gap: 8px;
-    padding: 6px 10px; cursor: pointer; }
-  .llmwiki-tool-card-status { font-size: 14px; }
+  .llmwiki-tool-card { background: var(--fill-tertiary, #f5f5f5); border-radius: 4px;
+    margin: 2px 0; font-size: 11px; overflow: hidden; transition: all 0.2s; }
+  .llmwiki-tool-card-header { display: flex; align-items: center; gap: 6px;
+    padding: 3px 8px; cursor: pointer; }
+  .llmwiki-tool-card-status { font-size: 12px; }
   .llmwiki-tool-card-body { padding: 6px 10px; border-top: 1px solid
     var(--fill-quaternary, #e0e0e0); display: none; font-family: monospace;
     font-size: 11px; max-height: 200px; overflow-y: auto; white-space: pre-wrap; }
@@ -945,6 +947,7 @@ async function handleSend(): Promise<void> {
 
   if (text === "/clear") {
     state.messages = [];
+    clearToolCards();
     clearChatDOM();
     state.busy = false;
     updateSendButton();
@@ -987,6 +990,7 @@ async function handleSend(): Promise<void> {
     _deepResearchMode = true;
     _researchTrace = { initial_query: query, steps: [] };
     state.messages = [];
+    clearToolCards();
     clearChatDOM();
     const sysPrompt = buildSystemPrompt();
     state.messages.push({ role: "system", content: sysPrompt });
@@ -1362,15 +1366,60 @@ function addToolCard(name: string, _args: Record<string, unknown>): ToolCard {
 
   card.appendChild(header);
   card.appendChild(bodyEl);
-  state.chatEl.appendChild(card);
+
+  // Insert before the round summary if it exists, otherwise append
+  if (_roundSummaryEl?.parentNode) {
+    state.chatEl.insertBefore(card, _roundSummaryEl.nextSibling || state.chatEl.lastChild);
+  } else {
+    state.chatEl.appendChild(card);
+  }
   scrollToBottom();
 
-  return {
+  const toolCard: ToolCard = {
     el: card,
     update(resultState: "complete" | "failed", detail: string) {
       statusEl.textContent = resultState === "complete" ? "✅" : "❌";
       bodyEl.textContent = detail;
-      if (resultState === "failed") card.classList.add("open");
+      if (resultState === "failed") {
+        card.classList.add("open");
+      } else {
+        // Auto-collapse after 2 seconds
+        setTimeout(() => card.classList.remove("open"), 2000);
+      }
+      // Collapse older cards, keep last 4 expanded via auto-collapse timing
+      updateRoundSummary();
     },
   };
+
+  _toolCards.push(toolCard);
+  // Collapse all cards older than the last 5
+  for (let i = 0; i < _toolCards.length - 4; i++) {
+    _toolCards[i].el.classList.remove("open");
+  }
+
+  return toolCard;
+}
+
+function updateRoundSummary(): void {
+  if (!state.chatEl || !state.doc) return;
+  const running = _toolCards.filter(c => c.el.querySelector(".llmwiki-tool-card-status")?.textContent === "⏳").length;
+  const done = _toolCards.length - running;
+
+  if (!_roundSummaryEl || !_roundSummaryEl.parentNode) {
+    _roundSummaryEl = state.doc.createElement("div");
+    _roundSummaryEl.className = "llmwiki-msg llmwiki-msg-system";
+    _roundSummaryEl.style.cssText = "font-size:11px; color:var(--text-secondary,#999); padding:2px 8px;";
+    state.chatEl.appendChild(_roundSummaryEl);
+  }
+  _roundSummaryEl.textContent = running > 0
+    ? `${done} done · ${running} running`
+    : `${done} tools completed`;
+}
+
+function clearToolCards(): void {
+  _toolCards.length = 0;
+  if (_roundSummaryEl) {
+    _roundSummaryEl.remove();
+    _roundSummaryEl = null;
+  }
 }
