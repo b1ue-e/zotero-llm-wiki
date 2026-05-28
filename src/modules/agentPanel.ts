@@ -801,8 +801,22 @@ async function executeDeepResearch(query: string): Promise<void> {
 
     if (thinkingEl) thinkingEl.remove();
 
-    const report = response.content || "";
+    let report = response.content || "";
     Zotero.debug(`[llmwiki] deep_research: loop ended, round=${round}, reportLen=${report.length}`);
+
+    // Force full report if LLM returned too little (common when old session context was injected)
+    if (report.length < 500) {
+      state.messages.push({
+        role: "user",
+        content: "Your response is too short. Produce a COMPLETE # Research: report now, following the format in the system prompt. Include Summary, Key Findings, Analysis by Topic, and References sections. Cite all relevant papers with [[wikilinks]]. Do NOT summarize — write the full report.",
+      });
+      const forcedResp = await callLLM(state.messages);
+      if (forcedResp.content) {
+        report = forcedResp.content;
+        response = forcedResp;
+      }
+    }
+
     if (!report && round >= maxRounds) {
       addAssistantMessage("Deep research reached the round limit without producing a report. Try a more specific question.");
       _deepResearchMode = false;
