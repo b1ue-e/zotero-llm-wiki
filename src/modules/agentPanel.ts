@@ -773,7 +773,12 @@ async function executeDeepResearch(query: string): Promise<void> {
           });
         }
         const result = await executeToolCall(tc);
-        state.messages.push({ role: "tool", tool_call_id: tc.id, content: result });
+        // Truncate large tool results to prevent context explosion in deep research
+        const maxResultLen = _deepResearchMode ? 3000 : 8000;
+        const truncated = result.length > maxResultLen
+          ? result.slice(0, maxResultLen) + `\n... (truncated ${result.length - maxResultLen} chars)`
+          : result;
+        state.messages.push({ role: "tool", tool_call_id: tc.id, content: truncated });
       }
 
       response = await callLLM(state.messages);
