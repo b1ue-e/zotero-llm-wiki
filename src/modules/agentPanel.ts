@@ -856,7 +856,7 @@ async function executeDeepResearch(query: string): Promise<void> {
           }
           const end = Math.min(offset + maxResultLen, result.length);
           const prefix = offset > 0 ? `[...skipping ${offset} chars]\n` : "";
-          const suffix = end < result.length ? `\n[...${result.length - end} chars remaining — call read_page again to continue]` : "";
+          const suffix = end < result.length ? `\n[...${result.length - end} more chars not shown]` : "";
           result = toc + prefix + result.slice(offset, end) + suffix;
         }
         state.messages.push({ role: "tool", tool_call_id: tc.id, content: result });
