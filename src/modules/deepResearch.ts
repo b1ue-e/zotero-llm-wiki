@@ -5,6 +5,7 @@ import {
   readFile,
   writeBinaryFile,
   readBinaryFile,
+  listDir,
 } from "../utils/xpcom";
 
 // ─── Types ───
@@ -53,6 +54,45 @@ function ensureResearchDirs(): void {
   makeDir(getResearchDir());
 }
 
+function simpleHash(str: string): string {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = (hash << 5) - hash + char;
+    hash |= 0;
+  }
+  return Math.abs(hash).toString(16);
+}
+
+function parseJsonArray(raw: string): string[] {
+  try {
+    return JSON.parse(raw) as string[];
+  } catch {
+    return [];
+  }
+}
+
+function rebuildIndex(): ResearchIndexEntry[] {
+  const entries: ResearchIndexEntry[] = [];
+  const dir = getResearchDir();
+  const files = listDir(dir);
+  for (const filePath of files) {
+    if (!filePath.endsWith(".md")) continue;
+    const slug = filePath.split("/").pop()!.replace(/\.md$/, "");
+    const session = loadSession(slug);
+    if (!session) continue;
+    entries.push({
+      slug,
+      title: session.frontmatter["title"] || "",
+      created: session.frontmatter["created"] || "",
+      status: session.frontmatter["status"] || "complete",
+      tags: parseJsonArray(session.frontmatter["tags"]),
+    });
+  }
+  entries.sort((a, b) => b.created.localeCompare(a.created));
+  return entries;
+}
+
 // ─── Index Management ───
 
 function readIndex(): ResearchIndexEntry[] {
@@ -61,8 +101,11 @@ function readIndex(): ResearchIndexEntry[] {
   if (!content) return [];
   try {
     return JSON.parse(content) as ResearchIndexEntry[];
-  } catch {
-    return [];
+  } catch (e) {
+    Zotero.debug(`deepResearch: index.json corruption, rebuilding. ${e}`);
+    const rebuilt = rebuildIndex();
+    writeIndex(rebuilt);
+    return rebuilt;
   }
 }
 
@@ -81,18 +124,17 @@ export function saveSession(data: SessionSaveData): string {
 
   const now = new Date();
   const dateStr = now.toISOString().slice(0, 10);
-  const slug =
-    dateStr +
-    "-" +
-    data.title
-      .replace(/[/\\:*?"<>|]/g, "")
-      // eslint-disable-next-line no-control-regex
-      .replace(/[^\x00-\x7F]/g, "")
-      .replace(/\s+/g, "-")
-      .replace(/-+/g, "-")
-      .replace(/^-|-$/g, "")
-      .toLowerCase()
-      .slice(0, 60);
+  const slugBase = data.title
+    .replace(/[/\\:*?"<>|]/g, "")
+    // eslint-disable-next-line no-control-regex
+    .replace(/[^\x00-\x7F]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .toLowerCase()
+    .slice(0, 60);
+  const hash = simpleHash(data.title + dateStr).slice(0, 8);
+  const slug = `${dateStr}-${slugBase}-${hash}`;
 
   const papersJson = JSON.stringify(data.papers_referenced);
   const conceptsJson = JSON.stringify(data.concepts_referenced);
@@ -120,13 +162,19 @@ export function saveSession(data: SessionSaveData): string {
   writeFile(filePath, content);
 
   const entries = readIndex();
-  entries.unshift({
+  const existingIdx = entries.findIndex((e) => e.slug === slug);
+  const entry: ResearchIndexEntry = {
     slug,
     title: data.title,
     created: dateStr,
     status: "complete",
     tags: data.tags,
-  });
+  };
+  if (existingIdx >= 0) {
+    entries[existingIdx] = entry;
+  } else {
+    entries.unshift(entry);
+  }
   writeIndex(entries);
 
   return slug;
@@ -269,5 +317,5 @@ export async function generateMetaAnalysis(
 }
 
 function escapeYaml(s: string): string {
-  return s.replace(/"/g, '\\"').replace(/\n/g, " ");
+  return s.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, " ");
 }
