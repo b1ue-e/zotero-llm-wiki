@@ -645,8 +645,17 @@ function buildSystemPrompt(): string {
 - search_sessions(query): Search past deep research sessions for reusable methodology.
 - read_session(slug): Read a full past research session.
 
-## Deep Research Detection
-When the user's question clearly requires multi-paper comparison, literature review, synthesis, or survey (keywords: compare, contrast, review, synthesize, survey, "what methods", "how does X relate to Y", "across papers") — respond with: "This seems like a research question. Would you like me to start a deep research? Type /deep_research or /deepresearch to begin." Do NOT start deep research automatically — always ask first.
+## Deep Research Detection (CRITICAL — read before answering)
+The user may not know about deep research mode. You MUST proactively suggest it when the question falls into any of these categories:
+- Open-ended exploration: "tell me about X", "what do we know about X"
+- Comparative questions: "compare X and Y", "differences between X and Y"
+- Synthesis requests: "summarize the literature on X", "what methods are used for X"
+- Multi-paper topics: any answer needing information from more than one paper
+
+**Response template (use before calling ANY tools):**
+"This seems like a research question. I can do a deep research — it searches broadly, reads multiple papers, and produces a structured report with meta-analysis. Type /deep_research 疾病细胞评分 to start. Want to try?"
+
+If the user agrees but doesn't use the slash command, remind them once: "Type /deep_research <question> to begin."
 
 ## Critical Rules (MUST follow)
 - **Stop and answer**: After calling read_page, you have the paper's complete structured summary. Answer the user's question IMMEDIATELY — do NOT call more tools.
@@ -996,6 +1005,17 @@ async function handleSend(): Promise<void> {
     state.messages.push({ role: "system", content: sysPrompt });
     state.messages.push({ role: "user", content: query });
     addUserMessage(query);
+
+    // Deep research activation banner
+    if (state.chatEl && state.doc) {
+      const banner = state.doc.createElement("div");
+      banner.className = "llmwiki-msg llmwiki-msg-system";
+      banner.style.cssText = "background:#e8f0fe; color:#1a56db; font-weight:600; padding:10px 16px; border-radius:8px; border-left:4px solid #1a56db;";
+      banner.textContent = `Deep Research: ${query}`;
+      state.chatEl.appendChild(banner);
+      scrollToBottom();
+    }
+
     state.busy = true;
     updateSendButton();
     executeDeepResearch(query).catch((e: any) => {
