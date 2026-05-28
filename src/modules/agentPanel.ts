@@ -62,8 +62,9 @@ const state: AgentState = {
 let _rawFlag = false;
 let _deepResearchMode = false;
 let _researchTrace: ResearchTrace = { initial_query: "", steps: [] };
-const _toolCards: ToolCard[] = [];
-let _roundSummaryEl: HTMLElement | null = null;
+let _toolStatusEl: HTMLElement | null = null;
+let _toolStatusDetailEl: HTMLElement | null = null;
+let _toolCount = 0;
 const _strideState = { searchWiki: 0, searchSessions: 0, readPage: {} as Record<string, number> };
 
 const MAX_TOOL_ROUNDS_NORMAL = 10;
@@ -96,15 +97,11 @@ const AGENT_CSS = `
     background: #dcf8c6; color: #222; }
   .llmwiki-msg-system { align-self: center; font-size: 12px;
     color: var(--text-secondary, #999); padding: 4px 8px; max-width: 100%; }
-  .llmwiki-tool-card { background: var(--fill-tertiary, #f5f5f5); border-radius: 4px;
-    margin: 2px 0; font-size: 11px; overflow: hidden; transition: all 0.2s; }
-  .llmwiki-tool-card-header { display: flex; align-items: center; gap: 6px;
-    padding: 3px 8px; cursor: pointer; }
-  .llmwiki-tool-card-status { font-size: 12px; }
-  .llmwiki-tool-card-body { padding: 6px 10px; border-top: 1px solid
-    var(--fill-quaternary, #e0e0e0); display: none; font-family: monospace;
-    font-size: 11px; max-height: 200px; overflow-y: auto; white-space: pre-wrap; }
-  .llmwiki-tool-card.open .llmwiki-tool-card-body { display: block; }
+  .llmwiki-tool-status { align-self: flex-start; font-size: 12px;
+    color: var(--text-secondary, #666); padding: 4px 12px; display: flex;
+    align-items: center; gap: 6px; }
+  .llmwiki-tool-status-detail { color: var(--text-secondary, #999); font-size: 11px;
+    max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .llmwiki-msg p { margin: 4px 0; }
   .llmwiki-msg ul, .llmwiki-msg ol { margin: 4px 0; padding-left: 20px; }
   .llmwiki-msg li { margin: 2px 0; }
@@ -979,7 +976,7 @@ async function handleSend(): Promise<void> {
   if (text === "/clear") {
     state.messages = [];
     resetStrideState();
-    clearToolCards();
+    clearToolStatus();
     clearChatDOM();
     state.busy = false;
     updateSendButton();
@@ -1023,7 +1020,7 @@ async function handleSend(): Promise<void> {
     _researchTrace = { initial_query: query, steps: [] };
     state.messages = [];
     resetStrideState();
-    clearToolCards();
+    clearToolStatus();
     clearChatDOM();
     const sysPrompt = buildSystemPrompt();
     state.messages.push({ role: "system", content: sysPrompt });
@@ -1408,96 +1405,74 @@ async function executeToolCall(tc: ToolCall): Promise<string> {
   }
 }
 
-// ─── Tool Card UI ───
+// ─── Tool Status Indicator (single line, updates in-place) ───
 
 interface ToolCard {
   el: HTMLElement;
   update(resultState: "complete" | "failed", detail: string): void;
 }
 
-function addToolCard(name: string, _args: Record<string, unknown>): ToolCard {
+const TOOL_ICONS: Record<string, string> = {
+  search_wiki: "🔍", read_page: "📖", list_papers: "📋",
+  ingest_selected: "⚡", update_wiki_section: "✏️",
+  search_sessions: "📂", read_session: "📄", find_connections: "🔗",
+  get_related_papers: "📎", list_concepts: "🏷️",
+};
+const TOOL_LABELS: Record<string, string> = {
+  search_wiki: "search", read_page: "read", list_papers: "list",
+  ingest_selected: "ingest", update_wiki_section: "update wiki",
+  search_sessions: "search sessions", read_session: "read session",
+  find_connections: "connections", get_related_papers: "related papers",
+  list_concepts: "concepts",
+};
+
+function addToolCard(name: string, args: Record<string, unknown>): ToolCard {
+  _toolCount++;
+  let brief = "";
+  try {
+    if (args.query) brief = `"${String(args.query).slice(0, 40)}"`;
+    else if (args.slug) brief = String(args.slug).slice(0, 40);
+    else if (args.section) brief = `${args.section}`;
+  } catch { /* ignore */ }
+
   if (!state.chatEl || !state.doc) {
-    return {
-      el: state.doc ? state.doc.createElement("div") : ({} as HTMLElement),
-      update: () => {},
-    };
+    return { el: {} as HTMLElement, update: () => {} };
   }
   const doc = state.doc;
 
-  const card = doc.createElement("div");
-  card.className = "llmwiki-tool-card";
-
-  const header = doc.createElement("div");
-  header.className = "llmwiki-tool-card-header";
-
-  const statusEl = doc.createElement("span");
-  statusEl.className = "llmwiki-tool-card-status";
-  statusEl.textContent = "⏳";
-
-  const label = doc.createElement("span");
-  label.textContent = name;
-
-  header.appendChild(statusEl);
-  header.appendChild(label);
-
-  header.addEventListener("click", () => {
-    card.classList.toggle("open");
-  });
-
-  const bodyEl = doc.createElement("div");
-  bodyEl.className = "llmwiki-tool-card-body";
-  bodyEl.textContent = "Running...";
-
-  card.appendChild(header);
-  card.appendChild(bodyEl);
-
-  // Insert before the round summary if it exists, otherwise append
-  if (_roundSummaryEl?.parentNode) {
-    state.chatEl.insertBefore(card, _roundSummaryEl.nextSibling || state.chatEl.lastChild);
-  } else {
-    state.chatEl.appendChild(card);
+  // Singleton status line — create once, update in-place
+  if (!_toolStatusEl || !_toolStatusEl.parentNode) {
+    _toolStatusEl = doc.createElement("div");
+    _toolStatusEl.className = "llmwiki-tool-status";
+    state.chatEl.appendChild(_toolStatusEl);
   }
+  // Clear previous content
+  while (_toolStatusEl.firstChild) _toolStatusEl.removeChild(_toolStatusEl.firstChild);
+
+  const iconEl = doc.createElement("span");
+  iconEl.textContent = TOOL_ICONS[name] || "🔧";
+
+  const labelEl = doc.createElement("span");
+  labelEl.textContent = `${TOOL_LABELS[name] || name} ${brief}`;
+
+  const countEl = doc.createElement("span");
+  countEl.style.cssText = "font-size:10px; color:var(--text-secondary,#999);";
+  countEl.textContent = `· ${_toolCount}`;
+
+  _toolStatusEl.appendChild(iconEl);
+  _toolStatusEl.appendChild(labelEl);
+  _toolStatusEl.appendChild(countEl);
   scrollToBottom();
 
-  const toolCard: ToolCard = {
-    el: card,
-    update(resultState: "complete" | "failed", detail: string) {
-      statusEl.textContent = resultState === "complete" ? "✅" : "❌";
-      bodyEl.textContent = detail;
-      if (resultState === "failed") {
-        card.classList.add("open");
-      } else {
-        // Auto-collapse after 2 seconds
-        setTimeout(() => card.classList.remove("open"), 2000);
+  return {
+    el: _toolStatusEl,
+    update(_resultState: string, _detail: string) {
+      // Update icon on completion
+      if (iconEl.parentNode) {
+        iconEl.textContent = _resultState === "failed" ? "❌" : TOOL_ICONS[name] || "🔧";
       }
-      // Collapse older cards, keep last 4 expanded via auto-collapse timing
-      updateRoundSummary();
     },
   };
-
-  _toolCards.push(toolCard);
-  // Collapse all cards older than the last 5
-  for (let i = 0; i < _toolCards.length - 4; i++) {
-    _toolCards[i].el.classList.remove("open");
-  }
-
-  return toolCard;
-}
-
-function updateRoundSummary(): void {
-  if (!state.chatEl || !state.doc) return;
-  const running = _toolCards.filter(c => c.el.querySelector(".llmwiki-tool-card-status")?.textContent === "⏳").length;
-  const done = _toolCards.length - running;
-
-  if (!_roundSummaryEl || !_roundSummaryEl.parentNode) {
-    _roundSummaryEl = state.doc.createElement("div");
-    _roundSummaryEl.className = "llmwiki-msg llmwiki-msg-system";
-    _roundSummaryEl.style.cssText = "font-size:11px; color:var(--text-secondary,#999); padding:2px 8px;";
-    state.chatEl.appendChild(_roundSummaryEl);
-  }
-  _roundSummaryEl.textContent = running > 0
-    ? `${done} done · ${running} running`
-    : `${done} tools completed`;
 }
 
 function resetStrideState(): void {
@@ -1506,10 +1481,11 @@ function resetStrideState(): void {
   _strideState.readPage = {};
 }
 
-function clearToolCards(): void {
-  _toolCards.length = 0;
-  if (_roundSummaryEl) {
-    _roundSummaryEl.remove();
-    _roundSummaryEl = null;
+function clearToolStatus(): void {
+  if (_toolStatusEl) {
+    _toolStatusEl.remove();
+    _toolStatusEl = null;
+    _toolStatusDetailEl = null;
   }
+  _toolCount = 0;
 }
