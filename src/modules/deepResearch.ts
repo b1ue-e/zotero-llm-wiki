@@ -3,8 +3,6 @@ import {
   makeDir,
   writeFile,
   readFile,
-  writeBinaryFile,
-  readBinaryFile,
   listDir,
 } from "../utils/xpcom";
 
@@ -18,12 +16,14 @@ interface ResearchStep {
 export interface ResearchTrace {
   initial_query: string;
   steps: ResearchStep[];
+  existingSessionSlug?: string;
 }
 
 interface ResearchIndexEntry {
   slug: string;
   title: string;
   created: string;
+  updated: string;
   status: string;
   tags: string[];
 }
@@ -37,6 +37,7 @@ export interface SessionSaveData {
   papers_referenced: string[];
   concepts_referenced: string[];
   tags: string[];
+  existingSlug?: string;
 }
 
 // ─── Path Helpers ───
@@ -85,6 +86,7 @@ function rebuildIndex(): ResearchIndexEntry[] {
       slug,
       title: session.frontmatter["title"] || "",
       created: session.frontmatter["created"] || "",
+      updated: session.frontmatter["updated"] || session.frontmatter["created"] || "",
       status: session.frontmatter["status"] || "complete",
       tags: parseJsonArray(session.frontmatter["tags"]),
     });
@@ -97,7 +99,7 @@ function rebuildIndex(): ResearchIndexEntry[] {
 
 function readIndex(): ResearchIndexEntry[] {
   const path = `${getResearchDir()}/index.json`;
-  const content = readBinaryFile(path);
+  const content = readFile(path);
   if (!content) return [];
   try {
     return JSON.parse(content) as ResearchIndexEntry[];
@@ -111,7 +113,7 @@ function readIndex(): ResearchIndexEntry[] {
 
 function writeIndex(entries: ResearchIndexEntry[]): void {
   ensureResearchDirs();
-  writeBinaryFile(
+  writeFile(
     `${getResearchDir()}/index.json`,
     JSON.stringify(entries, null, 2),
   );
@@ -119,22 +121,30 @@ function writeIndex(entries: ResearchIndexEntry[]): void {
 
 // ─── Session CRUD ───
 
-export function saveSession(data: SessionSaveData): string {
-  ensureResearchDirs();
-
+function generateSlug(title: string): string {
   const now = new Date();
   const dateStr = now.toISOString().slice(0, 10);
-  const slugBase = data.title
+  const slugBase = title
     .replace(/[/\\:*?"<>|]/g, "")
-    // eslint-disable-next-line no-control-regex
-    .replace(/[^\x00-\x7F]/g, "")
     .replace(/\s+/g, "-")
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "")
     .toLowerCase()
     .slice(0, 60);
-  const hash = simpleHash(data.title + dateStr).slice(0, 8);
-  const slug = `${dateStr}-${slugBase}-${hash}`;
+  const hash = simpleHash(title + dateStr).slice(0, 8);
+  return `${slugBase}-${hash}`;
+}
+
+export function saveSession(data: SessionSaveData): string {
+  ensureResearchDirs();
+
+  const now = new Date();
+  const dateStr = now.toISOString().slice(0, 10);
+  const slug = data.existingSlug || generateSlug(data.title);
+
+  const entries = readIndex();
+  const existingEntry = entries.find((e) => e.slug === slug);
+  const originalCreated = existingEntry?.created || dateStr;
 
   const papersJson = JSON.stringify(data.papers_referenced);
   const conceptsJson = JSON.stringify(data.concepts_referenced);
@@ -143,7 +153,7 @@ export function saveSession(data: SessionSaveData): string {
   const content = [
     "---",
     `title: "${escapeYaml(data.title)}"`,
-    `created: ${dateStr}`,
+    `created: ${originalCreated}`,
     `updated: ${dateStr}`,
     `status: complete`,
     `papers_referenced: ${papersJson}`,
@@ -161,12 +171,12 @@ export function saveSession(data: SessionSaveData): string {
   const filePath = `${getResearchDir()}/${slug}.md`;
   writeFile(filePath, content);
 
-  const entries = readIndex();
   const existingIdx = entries.findIndex((e) => e.slug === slug);
   const entry: ResearchIndexEntry = {
     slug,
     title: data.title,
-    created: dateStr,
+    created: originalCreated,
+    updated: dateStr,
     status: "complete",
     tags: data.tags,
   };

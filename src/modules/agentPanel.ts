@@ -703,6 +703,20 @@ You are in autonomous multi-step research mode. Your goal is comprehensive inves
 
 async function executeDeepResearch(query: string): Promise<void> {
   Zotero.debug(`[llmwiki] deep_research: starting for query "${query.slice(0, 80)}"`);
+  // Pre-research: check for existing sessions on this topic
+  const existingSessions = searchSessions(query);
+  if (existingSessions.length > 0) {
+    const bestMatch = existingSessions[0];
+    Zotero.debug(`[llmwiki] deep_research: found existing session "${bestMatch.title}"`);
+    const oldSession = loadSession(bestMatch.slug);
+    if (oldSession) {
+      state.messages.push({
+        role: "user",
+        content: `A previous research session on this topic exists (slug: ${bestMatch.slug}). Here is the previous report and meta-analysis. Review it, then search the wiki for NEW papers that may have been added since, read them, and produce an UPDATED comprehensive report that incorporates both old and new findings.\n\n## Previous Report\n${oldSession.report}\n\n## Previous Meta-Analysis\n${oldSession.meta_analysis}`,
+      });
+      _researchTrace = { initial_query: query, steps: [], existingSessionSlug: bestMatch.slug };
+    }
+  }
   const thinkingEl = addThinking();
   const maxRounds = MAX_TOOL_ROUNDS_DEEP;
   const maxSearches = MAX_SEARCHES_DEEP;
@@ -807,6 +821,7 @@ async function executeDeepResearch(query: string): Promise<void> {
         papers_referenced: [...new Set(paperRefs)].slice(0, 20),
         concepts_referenced: [...new Set(conceptRefs)].slice(0, 20),
         tags: tagWords.slice(0, 5),
+        existingSlug: _researchTrace.existingSessionSlug,
       });
 
       const dataDir = getWikiBaseDir().replace(/\/wiki$/, "");
