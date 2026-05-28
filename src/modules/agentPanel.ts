@@ -602,20 +602,6 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     type: "function",
     function: {
-      name: "start_deep_research",
-      description: "Begin autonomous multi-step research on a question. Searches, reads, and synthesizes findings into a structured report with citations.",
-      parameters: {
-        type: "object",
-        properties: {
-          query: { type: "string", description: "The research question to investigate" },
-        },
-        required: ["query"],
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
       name: "search_sessions",
       description: "Search past research sessions by title, tags, or content for reusable methodology and findings.",
       parameters: {
@@ -672,7 +658,12 @@ When the user's question clearly requires multi-paper comparison, literature rev
 - Cite papers using their exact titles when referencing them.
 - If you cannot find relevant information, suggest that the user ingest related papers.
 - Be concise, precise, and academic in your responses.
-- Write in the same language the user uses.`;
+- Write in the same language the user uses.
+
+## Wiki Enrichment
+- Whenever you discover information missing from the wiki, call update_wiki_section IMMEDIATELY after your answer — do NOT ask permission, just do it
+- If raw layer data has details the wiki lacks, enrich the relevant section proactively
+- Section names: "Research Question", "Method", "Key Findings", "Conclusions", "Limitations", "Related Work"`;
 
   if (_deepResearchMode) {
     return base + `
@@ -1171,10 +1162,6 @@ async function executeToolCall(tc: ToolCall): Promise<string> {
           args.content || "",
         );
         result = `Wiki updated. Now answer the user's original question.`;
-        break;
-      }
-      case "start_deep_research": {
-        result = `Deep research mode activated for: "${args.query || ""}"`;
         break;
       }
       case "search_sessions": {
