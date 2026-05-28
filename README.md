@@ -11,7 +11,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Zotero-9-blue?logo=zotero" alt="Zotero 9" />
   <img src="https://img.shields.io/badge/license-AGPL--3.0-green" alt="AGPL-3.0" />
-  <img src="https://img.shields.io/badge/version-0.1.0-lightgrey" alt="v0.1.0" />
+  <img src="https://img.shields.io/badge/version-0.1.0-lightgrey" alt="v0.2.0" />
 </p>
 
 ---
@@ -25,7 +25,8 @@
 ### 功能
 
 - 🚀 **一键编译** — 自动生成包含研究问题、方法、关键发现、结论等章节的 Wiki 页面
-- 🤖 **AI Agent** — Function-calling 驱动的研究助手，可搜索、阅读 Wiki、更新章节、编译新论文
+- 🤖 **AI Agent** — Function-calling 驱动的研究助手，可搜索、阅读 Wiki、更新章节、编译新论文；支持 `/deep_research` 自主多步深度研究
+- 🔬 **深度研究** — 多轮自主研究 + 结构化报告 + 元分析 + Session 复用，三阶段量化 Prompt
 - 📚 **Wiki 浏览器** — 文件树浏览 + Markdown 预览 + 在线编辑 + `[[wikilinks]]` 双向导航
 - 🏷️ **概念/实体自动提取** — 编译时自动识别关键概念和命名实体，生成概念页面并建立知识图谱双向链接
 - 📄 **PDF 全文搜索** — 自动提取 PDF 全文存入原始数据层，Wiki 信息不足时作为搜索回退
@@ -59,7 +60,8 @@
 | ---------- | ------------------------ |
 | `/clear`   | 重置对话                 |
 | `/compact` | 压缩上下文，保留最近几轮 |
-| `/save`    | 导出对话为 Markdown      |
+| `/save`             | 导出对话为 Markdown                       |
+| `/deep_research`    | 启动自主多步深度研究，生成结构化报告和元分析 |
 
 ### 开发
 
@@ -88,7 +90,8 @@ src/
 │   ├── wikiStorage.ts      # Wiki 页面 CRUD + 索引/日志
 │   ├── wikiReader.ts       # 搜索/读取/树操作
 │   ├── wikiBrowser.ts      # Wiki 浏览器面板
-│   ├── agentPanel.ts       # AI Agent 对话面板 (tool-calling)
+│   ├── agentPanel.ts       # AI Agent 对话面板 (tool-calling + 深度研究)
+│   ├── deepResearch.ts     # 自主多步研究 + Session 持久化 + 元分析
 │   ├── conceptExtractor.ts # 概念/实体 LLM 提取
 │   ├── rawStorage.ts       # 原始 JSON 数据层
 │   ├── pdfExtractor.ts     # PDF 全文提取
@@ -113,7 +116,8 @@ Select a paper in Zotero, right-click → "LLM Wiki: Ingest", and the plugin cal
 ### Features
 
 - 🚀 **One-Click Ingest** — Auto-generates wiki pages with Research Question, Method, Key Findings, Conclusions sections
-- 🤖 **AI Agent** — Function-calling research assistant that searches, reads, and updates the wiki
+- 🤖 **AI Agent** — Function-calling research assistant that searches, reads, updates the wiki; supports `/deep_research` for autonomous multi-step research
+- 🔬 **Deep Research** — Multi-round autonomous research + structured reports + meta-analysis + session reuse with quantified three-phase prompts
 - 📚 **Wiki Browser** — File tree + Markdown preview + inline editor + `[[wikilinks]]` navigation
 - 🏷️ **Concept/Entity Extraction** — Auto-identifies key concepts and named entities, builds knowledge graph with bidirectional links
 - 📄 **PDF Fulltext Search** — Auto-extracts PDF fulltext into raw data layer as search fallback
@@ -147,7 +151,8 @@ Select a paper in Zotero, right-click → "LLM Wiki: Ingest", and the plugin cal
 | ---------- | ------------------------------- |
 | `/clear`   | Reset conversation              |
 | `/compact` | Compress context window         |
-| `/save`    | Export conversation as Markdown |
+| `/save`             | Export conversation as Markdown                   |
+| `/deep_research`    | Start autonomous multi-step research with report    |
 
 ### Development
 
@@ -176,7 +181,8 @@ src/
 │   ├── wikiStorage.ts      # Wiki page CRUD + index/log
 │   ├── wikiReader.ts       # Search/read/tree operations
 │   ├── wikiBrowser.ts      # Wiki browser tab panel
-│   ├── agentPanel.ts       # AI Agent chat panel (tool-calling)
+│   ├── agentPanel.ts       # AI Agent chat panel (tool-calling + deep research)
+│   ├── deepResearch.ts     # Autonomous multi-step research + session persistence
 │   ├── conceptExtractor.ts # Concept/entity LLM extraction
 │   ├── rawStorage.ts       # Raw JSON data layer
 │   ├── pdfExtractor.ts     # PDF fulltext extraction

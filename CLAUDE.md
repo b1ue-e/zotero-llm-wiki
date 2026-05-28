@@ -32,7 +32,8 @@ src/
 │   ├── wikiStorage.ts     # Wiki page creation, index/log maintenance, LLM prompts
 │   ├── wikiReader.ts      # Wiki page read/search/tree operations (canonical interface)
 │   ├── wikiBrowser.ts     # Zotero tab panel: wiki file browser + preview + editor
-│   ├── agentPanel.ts      # Zotero tab panel: AI chat with tool-calling access to wiki
+│   ├── agentPanel.ts      # Zotero tab panel: AI chat with tool-calling + deep research mode
+│   ├── deepResearch.ts    # Autonomous multi-step research, session persistence, meta-analysis
 │   ├── rawStorage.ts      # Raw JSON layer: paper metadata + fulltext (pre-LLM fallback)
 │   ├── pdfExtractor.ts    # PDF fulltext extraction via Zotero's index + gzip decompression
 │   └── preferenceScript.ts# Preferences pane init + defaults
@@ -56,16 +57,19 @@ addon/
 
 The `addon` global singleton is created in `src/index.ts` and mounted on `Zotero.LLMWiki`. Plugin code runs in Zotero's privileged sandbox — **no browser fetch/AbortController, no Node.js APIs**. All I/O goes through Firefox XPCOM (`Components.classes` / `Components.interfaces`).
 
-### Two-layer data architecture
+### Three-layer data architecture
 
-The project uses a Karpathy-style "raw + wiki" pattern:
+The project uses a Karpathy-style "raw + wiki" pattern plus research sessions:
 
 - **Raw layer** (`rawStorage.ts`): Immutable JSON snapshots of paper metadata + fulltext, saved _before_ the LLM call. Lives in `llm-wiki/raw/papers/{slug}.json`. Serves as a searchable fallback when wiki pages lack information.
 - **Wiki layer** (`wikiStorage.ts` + `wikiReader.ts`): LLM-generated structured Markdown pages in `llm-wiki/wiki/papers/{slug}.md`, plus `index.md` (catalog) and `log.md` (append-only operation log). Directories `concepts/` and `entities/` are pre-created for future use.
+- **Research sessions** (`deepResearch.ts`): Autonomous multi-step research reports with meta-analysis in `llm-wiki/research-sessions/{slug}.md`, indexed by `index.json`. Sessions are reused and updated when the same topic is researched again.
 
 ### Agent panel tool-calling loop
 
-The agent panel (`agentPanel.ts`) implements a multi-round OpenAI function-calling loop (max 10 rounds, max 5 searches). Tools: `search_wiki`, `read_page`, `list_papers`, `ingest_selected`, `update_wiki_section`. A module-level `_rawFlag` detects when raw-layer data was accessed; after the main loop, the agent gets one extra round to call `update_wiki_section` to enrich the wiki with raw-layer content.
+The agent panel (`agentPanel.ts`) implements a multi-round OpenAI function-calling loop (max 10 rounds, max 5 searches in normal mode; 20 rounds, 15 searches in deep research mode). Tools: `search_wiki`, `read_page`, `list_papers`, `ingest_selected`, `update_wiki_section`, `search_sessions`, `read_session`. A module-level `_rawFlag` detects when raw-layer data was accessed; after the main loop, the agent gets one extra round to call `update_wiki_section` to enrich the wiki with raw-layer content.
+
+**Deep research** (`/deep_research` or `/deepresearch` command) activates an autonomous multi-step research mode with a three-phase prompt (Explore → Deep Read → Synthesize), code-enforced tool limits, stride-based content reading with TOC extraction, session reuse across runs, and automated meta-analysis generation.
 
 ### DOM preservation across tab rebuilds
 
