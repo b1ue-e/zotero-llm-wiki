@@ -658,6 +658,7 @@ The user may not know about deep research mode. You MUST proactively suggest it 
 If the user agrees but doesn't use the slash command, remind them once: "Type /deep_research <question> to begin."
 
 ## Critical Rules (MUST follow)
+- **Never output internal reasoning**: Do NOT say things like "let me read this paper" or "I found some relevant results" — just call the tool silently and present findings in your answer.
 - **Stop and answer**: After calling read_page, you have the paper's complete structured summary. Answer the user's question IMMEDIATELY — do NOT call more tools.
 - **One page is enough**: read_page returns all wiki sections. If the answer is in there, just answer.
 - **Maximum 3 tool calls total per question**, then you MUST answer with what you have.
@@ -1122,12 +1123,28 @@ async function handleSend(): Promise<void> {
     if (thinkingEl) thinkingEl.remove();
 
     if (response.content) {
-      state.messages.push({
-        role: "assistant",
-        content: response.content,
-        ...response.rawMessage,
-      } as ChatMessage);
-      addAssistantMessage(response.content);
+      // Detect internal reasoning masquerading as answer (DeepSeek quirk)
+      const looksLikeReasoning = /^(Let me|I'll|I will|I found|I see|让我|我来|发现|让我来)/i.test(response.content.trim())
+        && response.content.length < 300
+        && !response.content.includes("##");
+      if (looksLikeReasoning) {
+        state.messages.push({
+          role: "user",
+          content: "Stop narrating your plans. Based on the search results you already have, answer my question directly. If you need to read a paper, call read_page. If you have enough info, just answer.",
+        });
+        const retryResp = await callLLM(state.messages);
+        if (retryResp.content) {
+          state.messages.push({ role: "assistant", content: retryResp.content, ...retryResp.rawMessage } as ChatMessage);
+          addAssistantMessage(retryResp.content);
+        }
+      } else {
+        state.messages.push({
+          role: "assistant",
+          content: response.content,
+          ...response.rawMessage,
+        } as ChatMessage);
+        addAssistantMessage(response.content);
+      }
     } else if (round >= maxRounds) {
       addAssistantMessage(
         "I ran too many tool calls without reaching a conclusion. Please try a more specific question.",
