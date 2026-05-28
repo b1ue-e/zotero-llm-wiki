@@ -714,7 +714,22 @@ async function executeDeepResearch(query: string): Promise<void> {
     if (oldSession) {
       state.messages.push({
         role: "user",
-        content: `A previous research session on this topic exists (slug: ${bestMatch.slug}). Here is the previous report and meta-analysis. Review it, then search the wiki for NEW papers that may have been added since, read them, and produce an UPDATED comprehensive report that incorporates both old and new findings.\n\n## Previous Report\n${oldSession.report}\n\n## Previous Meta-Analysis\n${oldSession.meta_analysis}`,
+        content: [
+          `A previous research session exists for this topic (slug: ${bestMatch.slug}).`,
+          "",
+          "## Previous Report Summary",
+          oldSession.report.slice(0, 1500) + (oldSession.report.length > 1500 ? "\n...(truncated)" : ""),
+          "",
+          "## Previous Meta-Analysis (Key Points)",
+          oldSession.meta_analysis.slice(0, 1000) + (oldSession.meta_analysis.length > 1000 ? "\n...(truncated)" : ""),
+          "",
+          "## Your Task",
+          "1. Search the wiki for NEW papers on this topic that may have been added since",
+          "2. Read any newly found papers",
+          "3. Produce a COMPLETE updated report that merges old findings with new discoveries",
+          "4. End with a full # Research: report (same format as before)",
+          "5. The report MUST be comprehensive — include all findings, both old and new",
+        ].join("\n"),
       });
       _researchTrace = { initial_query: query, steps: [], existingSessionSlug: bestMatch.slug };
     }
