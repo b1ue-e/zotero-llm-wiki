@@ -4,8 +4,19 @@ import { createZToolkit } from "./utils/ztoolkit";
 import { runIngest } from "./modules/ingest";
 import { renderWikiBrowser } from "./modules/wikiBrowser";
 import { renderAgentPanel } from "./modules/agentPanel";
+import { appendDebugLog, getDebugLogPath } from "./utils/xpcom";
 
 async function onStartup() {
+  // Patch Zotero.debug to also write [llmwiki] messages to a log file
+  // so they are visible in the terminal via `npm run log`
+  const originalDebug = Zotero.debug.bind(Zotero);
+  Zotero.debug = function (msg: string) {
+    if (typeof msg === "string" && msg.includes("[llmwiki]")) {
+      appendDebugLog(msg);
+    }
+    originalDebug(msg);
+  };
+
   Zotero.debug("[llmwiki] onStartup begin");
 
   initLocale();
@@ -87,6 +98,8 @@ async function onStartup() {
 
   addon.data.initialized = true;
   Zotero.debug("[llmwiki] onStartup complete");
+  Zotero.debug(`[llmwiki] Debug log file: ${getDebugLogPath()}`);
+  Zotero.debug("[llmwiki] Run 'npm run log' in another terminal to tail it");
 }
 
 async function onMainWindowLoad(win: _ZoteroTypes.MainWindow): Promise<void> {

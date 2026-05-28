@@ -130,6 +130,51 @@ function listDir(path: string): string[] {
   return result;
 }
 
+function getDebugLogPath(): string {
+  let dataPath = Zotero.Prefs.get("dataDir") as string;
+  if (!dataPath) {
+    const storagePath = Zotero.getStorageDirectory().path;
+    dataPath = storagePath.substring(0, storagePath.lastIndexOf("/"));
+  }
+  return `${dataPath}/llm-wiki/debug.log`;
+}
+
+function appendDebugLog(msg: string): void {
+  try {
+    const path = getDebugLogPath();
+    const dir = path.substring(0, path.lastIndexOf("/"));
+    // Ensure llm-wiki directory exists
+    // @ts-expect-error - Mozilla XPCOM
+    const dirFile = Components.classes["@mozilla.org/file/local;1"]
+      .createInstance(Components.interfaces.nsIFile) as any;
+    dirFile.initWithPath(dir);
+    if (!dirFile.exists()) {
+      dirFile.create(Components.interfaces.nsIFile.DIRECTORY_TYPE, 0o755);
+    }
+
+    // @ts-expect-error - Mozilla XPCOM
+    const file = Components.classes["@mozilla.org/file/local;1"]
+      .createInstance(Components.interfaces.nsIFile) as any;
+    file.initWithPath(path);
+
+    // @ts-expect-error - Mozilla XPCOM
+    const stream = Components.classes["@mozilla.org/network/file-output-stream;1"]
+      .createInstance(Components.interfaces.nsIFileOutputStream) as any;
+    // PR_WRONLY | PR_CREATE_FILE | PR_APPEND
+    stream.init(file, 0x02 | 0x08 | 0x10, 0o644, 0);
+
+    // @ts-expect-error - Mozilla XPCOM
+    const converter = Components.classes["@mozilla.org/intl/converter-output-stream;1"]
+      .createInstance(Components.interfaces.nsIConverterOutputStream) as any;
+    converter.init(stream, "UTF-8", 0, 0x0000);
+    converter.writeString(msg + "\n");
+    converter.close();
+    stream.close();
+  } catch (_e) {
+    // Debug logging must never throw
+  }
+}
+
 function fileExists(path: string): boolean {
   // @ts-expect-error - Mozilla XPCOM
   const file = Components.classes["@mozilla.org/file/local;1"]
@@ -150,6 +195,8 @@ function ensureDirs(): void {
 export {
   getWikiBaseDir,
   getRawDir,
+  getDebugLogPath,
+  appendDebugLog,
   makeDir,
   writeFile,
   writeBinaryFile,
