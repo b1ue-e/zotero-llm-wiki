@@ -833,12 +833,13 @@ async function executeDeepResearch(query: string): Promise<void> {
             details: tc.function.arguments || "",
           });
         }
-        const result = await executeToolCall(tc);
+        let result = await executeToolCall(tc);
         // Truncate large tool results with stride — consecutive calls advance through content
         const maxResultLen = _deepResearchMode ? 3000 : 8000;
-        let truncated = result;
         if (result.length > maxResultLen) {
           const toolName = tc.function.name;
+          // Extract TOC so LLM can see structure even when content is truncated
+          const toc = buildTOC(toolName, result);
           // Per-page stride for read_page, global stride for search_wiki
           let offset = 0;
           if (toolName === "read_page") {
@@ -855,10 +856,10 @@ async function executeDeepResearch(query: string): Promise<void> {
           }
           const end = Math.min(offset + maxResultLen, result.length);
           const prefix = offset > 0 ? `[...skipping ${offset} chars]\n` : "";
-          const suffix = end < result.length ? `\n[...${result.length - end} chars remaining — call again to continue]` : "";
-          truncated = prefix + result.slice(offset, end) + suffix;
+          const suffix = end < result.length ? `\n[...${result.length - end} chars remaining — call read_page again to continue]` : "";
+          result = toc + prefix + result.slice(offset, end) + suffix;
         }
-        state.messages.push({ role: "tool", tool_call_id: tc.id, content: truncated });
+        state.messages.push({ role: "tool", tool_call_id: tc.id, content: result });
       }
 
       response = await callLLM(state.messages);
@@ -1262,6 +1263,30 @@ function saveConversation(): void {
 
 function updateSendButton(): void {
   if (state.sendBtn) state.sendBtn.disabled = state.busy;
+}
+
+// ─── Content TOC Extractor ───
+
+function buildTOC(toolName: string, content: string): string {
+  if (toolName === "read_page") {
+    // Extract ## section headings as TOC
+    const headings = content.match(/^##\s+.+$/gm);
+    if (!headings || headings.length === 0) return "";
+    return `[Sections: ${headings.map(h => h.replace(/^##\s+/, "")).join(" | ")}]\n\n`;
+  }
+  if (toolName === "read_session") {
+    const headings = content.match(/^#+\s+.+$/gm);
+    if (!headings || headings.length === 0) return "";
+    return `[Sections: ${headings.map(h => h.replace(/^#+\s+/, "").trim()).join(" > ")}]\n\n`;
+  }
+  if (toolName === "search_wiki") {
+    // Extract paper titles from search results
+    const titles = content.match(/^\*\*([^*]+)\*\*/gm);
+    if (!titles || titles.length === 0) return "";
+    const count = titles.length;
+    return `[${count} papers found: ${titles.slice(0, 5).map(t => t.replace(/\*\*/g, "")).join(" | ")}${count > 5 ? ` | ...+${count - 5} more` : ""}]\n\n`;
+  }
+  return "";
 }
 
 // ─── Tool Execution ───
