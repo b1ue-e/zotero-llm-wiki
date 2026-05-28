@@ -99,6 +99,7 @@ function rebuildIndex(): ResearchIndexEntry[] {
 
 function readIndex(): ResearchIndexEntry[] {
   const path = `${getResearchDir()}/index.json`;
+  Zotero.debug(`[llmwiki] readIndex: path=${path}`);
   let content: string | null = null;
   try {
     content = readFile(path);
@@ -108,9 +109,11 @@ function readIndex(): ResearchIndexEntry[] {
     try { writeIndex(rebuilt); } catch (_) { /* non-blocking */ }
     return rebuilt;
   }
-  if (!content) return [];
+  if (!content) { Zotero.debug(`[llmwiki] readIndex: file not found or empty`); return []; }
   try {
-    return JSON.parse(content) as ResearchIndexEntry[];
+    const parsed = JSON.parse(content) as ResearchIndexEntry[];
+    Zotero.debug(`[llmwiki] readIndex: ${parsed.length} entries loaded`);
+    return parsed;
   } catch (e) {
     Zotero.debug(`[llmwiki] deepResearch: index.json corruption, rebuilding. ${e}`);
     const rebuilt = rebuildIndex();
@@ -247,6 +250,7 @@ export function searchSessions(
   const q = query.toLowerCase();
   const queryWords = q.split(/\s+/).filter((w) => w.length > 1);
   const entries = readIndex();
+  Zotero.debug(`[llmwiki] searchSessions: query="${query.slice(0, 60)}", queryWords=[${queryWords.join(",")}], indexEntries=${entries.length}`);
   const results: {
     slug: string;
     title: string;
@@ -257,10 +261,9 @@ export function searchSessions(
   for (const entry of entries) {
     const titleLower = entry.title.toLowerCase();
     const tagsLower = entry.tags.join(" ").toLowerCase();
-    if (
-      !queryWords.some((w) => titleLower.includes(w) || tagsLower.includes(w))
-    )
-      continue;
+    const matched = queryWords.some((w) => titleLower.includes(w) || tagsLower.includes(w));
+    Zotero.debug(`[llmwiki] searchSessions: entry "${entry.title.slice(0, 40)}" titleMatch=${matched}`);
+    if (!matched) continue;
 
     const session = loadSession(entry.slug);
     const snippet = session
