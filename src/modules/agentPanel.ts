@@ -64,6 +64,7 @@ let _deepResearchMode = false;
 let _researchTrace: ResearchTrace = { initial_query: "", steps: [] };
 const _toolCards: ToolCard[] = [];
 let _roundSummaryEl: HTMLElement | null = null;
+const _strideState = { searchWiki: 0, searchSessions: 0, readPage: {} as Record<string, number> };
 
 const MAX_TOOL_ROUNDS_NORMAL = 10;
 const MAX_SEARCHES_NORMAL = 5;
@@ -833,11 +834,30 @@ async function executeDeepResearch(query: string): Promise<void> {
           });
         }
         const result = await executeToolCall(tc);
-        // Truncate large tool results to prevent context explosion in deep research
+        // Truncate large tool results with stride — consecutive calls advance through content
         const maxResultLen = _deepResearchMode ? 3000 : 8000;
-        const truncated = result.length > maxResultLen
-          ? result.slice(0, maxResultLen) + `\n... (truncated ${result.length - maxResultLen} chars)`
-          : result;
+        let truncated = result;
+        if (result.length > maxResultLen) {
+          const toolName = tc.function.name;
+          // Per-page stride for read_page, global stride for search_wiki
+          let offset = 0;
+          if (toolName === "read_page") {
+            const args = JSON.parse(tc.function.arguments || "{}");
+            const slug = args.slug || "";
+            _strideState.readPage[slug] = (_strideState.readPage[slug] || 0) + 1;
+            offset = ((_strideState.readPage[slug] - 1) * maxResultLen) % result.length;
+          } else if (toolName === "search_wiki") {
+            _strideState.searchWiki++;
+            offset = (_strideState.searchWiki * maxResultLen) % result.length;
+          } else if (toolName === "search_sessions") {
+            _strideState.searchSessions++;
+            offset = (_strideState.searchSessions * maxResultLen) % result.length;
+          }
+          const end = Math.min(offset + maxResultLen, result.length);
+          const prefix = offset > 0 ? `[...skipping ${offset} chars]\n` : "";
+          const suffix = end < result.length ? `\n[...${result.length - end} chars remaining — call again to continue]` : "";
+          truncated = prefix + result.slice(offset, end) + suffix;
+        }
         state.messages.push({ role: "tool", tool_call_id: tc.id, content: truncated });
       }
 
@@ -957,6 +977,7 @@ async function handleSend(): Promise<void> {
 
   if (text === "/clear") {
     state.messages = [];
+    resetStrideState();
     clearToolCards();
     clearChatDOM();
     state.busy = false;
@@ -1000,6 +1021,7 @@ async function handleSend(): Promise<void> {
     _deepResearchMode = true;
     _researchTrace = { initial_query: query, steps: [] };
     state.messages = [];
+    resetStrideState();
     clearToolCards();
     clearChatDOM();
     const sysPrompt = buildSystemPrompt();
@@ -1451,6 +1473,12 @@ function updateRoundSummary(): void {
   _roundSummaryEl.textContent = running > 0
     ? `${done} done · ${running} running`
     : `${done} tools completed`;
+}
+
+function resetStrideState(): void {
+  _strideState.searchWiki = 0;
+  _strideState.searchSessions = 0;
+  _strideState.readPage = {};
 }
 
 function clearToolCards(): void {
