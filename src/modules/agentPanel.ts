@@ -12,6 +12,7 @@ import { getPref } from "../utils/prefs";
 import { getWikiBaseDir, writeFile, makeDir } from "../utils/xpcom";
 import { searchRaw } from "./rawStorage";
 import { appendToSection } from "./wikiStorage";
+import { saveSession, searchSessions, loadSession, listSessions, generateMetaAnalysis, type SessionSaveData, type ResearchTrace } from "./deepResearch";
 
 // ─── Types ───
 
@@ -59,6 +60,13 @@ const state: AgentState = {
 };
 
 let _rawFlag = false;
+let _deepResearchMode = false;
+let _researchTrace: ResearchTrace = { initial_query: "", steps: [] };
+
+const MAX_TOOL_ROUNDS_NORMAL = 10;
+const MAX_SEARCHES_NORMAL = 5;
+const MAX_TOOL_ROUNDS_DEEP = 20;
+const MAX_SEARCHES_DEEP = 15;
 
 // ─── CSS ───
 
@@ -125,7 +133,13 @@ const AGENT_CSS = `
 
 // ─── Public Entry Point ───
 
-export function renderAgentPanel({ body, doc }: { body: HTMLElement; doc: Document }): void {
+export function renderAgentPanel({
+  body,
+  doc,
+}: {
+  body: HTMLElement;
+  doc: Document;
+}): void {
   if (!body) return;
   state.doc = doc;
 
@@ -156,7 +170,10 @@ export function renderAgentPanel({ body, doc }: { body: HTMLElement; doc: Docume
   const welcome = doc.createElement("div");
   welcome.className = "llmwiki-msg llmwiki-msg-assistant";
   const wikiPath = getWikiBaseDir();
-  renderMarkdownTo(welcome, `Hello! I can search your wiki, read papers, list your library, and compile new papers. Ask me anything about your research.\n\nWiki files are stored at: \`${wikiPath}/\``);
+  renderMarkdownTo(
+    welcome,
+    `Hello! I can search your wiki, read papers, list your library, and compile new papers. Ask me anything about your research.\n\nWiki files are stored at: \`${wikiPath}/\``,
+  );
   messagesEl.appendChild(welcome);
 
   // Input area
@@ -301,7 +318,8 @@ function renderMarkdownTo(container: HTMLElement, md: string): void {
       const table = doc.createElement("table");
       while (i < lines.length && /^\|.+\|/.test(lines[i])) {
         const cells = lines[i].split("|").filter((c) => c.trim());
-        const isHeader = i + 1 < lines.length && /^\|[-:\s|]+\|$/.test(lines[i + 1]);
+        const isHeader =
+          i + 1 < lines.length && /^\|[-:\s|]+\|$/.test(lines[i + 1]);
         const tr = doc.createElement("tr");
         cells.forEach((cell) => {
           const td = doc.createElement(isHeader ? "th" : "td");
@@ -349,11 +367,17 @@ function renderMarkdownTo(container: HTMLElement, md: string): void {
 
     // Paragraph: collect consecutive non-empty, non-special lines
     const paraLines: string[] = [];
-    while (i < lines.length && lines[i].trim() !== "" &&
-           !/^```/.test(lines[i]) && !/^---+$/.test(lines[i].trim()) &&
-           !/^#{1,4}\s+/.test(lines[i]) && !/^[-*]\s+/.test(lines[i]) &&
-           !/^\d+\.\s+/.test(lines[i]) && !/^\|.+\|/.test(lines[i]) &&
-           !/^>\s?/.test(lines[i])) {
+    while (
+      i < lines.length &&
+      lines[i].trim() !== "" &&
+      !/^```/.test(lines[i]) &&
+      !/^---+$/.test(lines[i].trim()) &&
+      !/^#{1,4}\s+/.test(lines[i]) &&
+      !/^[-*]\s+/.test(lines[i]) &&
+      !/^\d+\.\s+/.test(lines[i]) &&
+      !/^\|.+\|/.test(lines[i]) &&
+      !/^>\s?/.test(lines[i])
+    ) {
       paraLines.push(lines[i]);
       i++;
     }
@@ -370,7 +394,9 @@ function renderMarkdownTo(container: HTMLElement, md: string): void {
 function renderInlineTo(el: HTMLElement, text: string): void {
   const doc = state.doc!;
   // Split by inline tokens: **bold**, *italic*, `code`, [link](url)
-  const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`|\[[^\]]+\]\([^)]+\))/g);
+  const parts = text.split(
+    /(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`|\[[^\]]+\]\([^)]+\))/g,
+  );
   for (const part of parts) {
     if (!part) continue;
     if (/^\*\*[^*]+\*\*$/.test(part)) {
@@ -430,7 +456,9 @@ function callLLM(messages: ChatMessage[]): Promise<LLMResponse> {
   const model = getPref("modelName") as string;
 
   if (!endpoint || !apiKey) {
-    return Promise.reject(new Error("API not configured. Check Preferences → LLM Wiki."));
+    return Promise.reject(
+      new Error("API not configured. Check Preferences → LLM Wiki."),
+    );
   }
 
   const url = endpoint.endsWith("/chat/completions")
@@ -458,7 +486,11 @@ function callLLM(messages: ChatMessage[]): Promise<LLMResponse> {
         return;
       }
       if (xhr.status < 200 || xhr.status >= 300) {
-        reject(new Error(`API error (${xhr.status}): ${xhr.responseText?.slice(0, 300) || ""}`));
+        reject(
+          new Error(
+            `API error (${xhr.status}): ${xhr.responseText?.slice(0, 300) || ""}`,
+          ),
+        );
         return;
       }
       try {
@@ -487,7 +519,8 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
     type: "function",
     function: {
       name: "search_wiki",
-      description: "Full-text search across all wiki pages. Returns matching papers with content snippets.",
+      description:
+        "Full-text search across all wiki pages. Returns matching papers with content snippets.",
       parameters: {
         type: "object",
         properties: {
@@ -501,11 +534,15 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
     type: "function",
     function: {
       name: "read_page",
-      description: "Read the full content of a wiki page by its slug (e.g., 'papers/title-slug-hash').",
+      description:
+        "Read the full content of a wiki page by its slug (e.g., 'papers/title-slug-hash').",
       parameters: {
         type: "object",
         properties: {
-          slug: { type: "string", description: "Page slug path like papers/slug" },
+          slug: {
+            type: "string",
+            description: "Page slug path like papers/slug",
+          },
         },
         required: ["slug"],
       },
@@ -515,7 +552,8 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
     type: "function",
     function: {
       name: "list_papers",
-      description: "List all papers in the knowledge base with titles, years, and summaries.",
+      description:
+        "List all papers in the knowledge base with titles, years, and summaries.",
       parameters: {
         type: "object",
         properties: {},
@@ -526,7 +564,8 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
     type: "function",
     function: {
       name: "ingest_selected",
-      description: "Compile the currently selected Zotero items into wiki pages using the LLM.",
+      description:
+        "Compile the currently selected Zotero items into wiki pages using the LLM.",
       parameters: {
         type: "object",
         properties: {},
@@ -537,15 +576,68 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
     type: "function",
     function: {
       name: "update_wiki_section",
-      description: "Append new information to a specific section of a wiki page. Use this when raw data contains important knowledge not yet captured in the structured wiki page.",
+      description:
+        "Append new information to a specific section of a wiki page. Use this when raw data contains important knowledge not yet captured in the structured wiki page.",
       parameters: {
         type: "object",
         properties: {
-          slug: { type: "string", description: "Wiki page slug (e.g., 'papers/title-hash')" },
-          section: { type: "string", description: "Section name: Research Question, Method, Key Findings, Conclusions, Limitations, Related Work" },
-          content: { type: "string", description: "Markdown content to append to the section" },
+          slug: {
+            type: "string",
+            description: "Wiki page slug (e.g., 'papers/title-hash')",
+          },
+          section: {
+            type: "string",
+            description:
+              "Section name: Research Question, Method, Key Findings, Conclusions, Limitations, Related Work",
+          },
+          content: {
+            type: "string",
+            description: "Markdown content to append to the section",
+          },
         },
         required: ["slug", "section", "content"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "start_deep_research",
+      description: "Begin autonomous multi-step research on a question. Searches, reads, and synthesizes findings into a structured report with citations.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "The research question to investigate" },
+        },
+        required: ["query"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "search_sessions",
+      description: "Search past research sessions by title, tags, or content for reusable methodology and findings.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "Search query for past sessions" },
+        },
+        required: ["query"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "read_session",
+      description: "Read a past research session including its report and meta-analysis by slug.",
+      parameters: {
+        type: "object",
+        properties: {
+          slug: { type: "string", description: "Session slug (e.g., '2026-05-28-topic-slug')" },
+        },
+        required: ["slug"],
       },
     },
   },
@@ -554,13 +646,19 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
 // ─── System Prompt ───
 
 function buildSystemPrompt(): string {
-  return `You are a research assistant with access to a personal wiki knowledge base containing structured summaries of academic papers.
+  const base = `You are a research assistant with access to a personal wiki knowledge base containing structured summaries of academic papers.
 
 ## Available Tools
 - search_wiki(query): Search all wiki pages for specific topics. Returns paper titles with content snippets.
 - read_page(slug): Read the full content of a specific wiki page by its slug path.
 - list_papers(): List all papers in the knowledge base with years and summaries.
 - ingest_selected(): Compile the currently selected Zotero items into new wiki pages.
+- update_wiki_section(slug, section, content): Append new information to a wiki page section.
+- search_sessions(query): Search past deep research sessions for reusable methodology.
+- read_session(slug): Read a full past research session.
+
+## Deep Research Detection
+When the user's question clearly requires multi-paper comparison, literature review, synthesis, or survey (keywords: compare, contrast, review, synthesize, survey, "what methods", "how does X relate to Y", "across papers") — respond with: "This seems like a research question. Would you like me to start a deep research? Type /deep_research to begin." Do NOT start deep research automatically — always ask first.
 
 ## Critical Rules (MUST follow)
 - **Stop and answer**: After calling read_page, you have the paper's complete structured summary. Answer the user's question IMMEDIATELY — do NOT call more tools.
@@ -574,12 +672,165 @@ function buildSystemPrompt(): string {
 - Cite papers using their exact titles when referencing them.
 - If you cannot find relevant information, suggest that the user ingest related papers.
 - Be concise, precise, and academic in your responses.
-- Write in the same language the user uses.
+- Write in the same language the user uses.`;
 
-## Wiki Enrichment
-- Whenever you discover information missing from the wiki, call update_wiki_section IMMEDIATELY after your answer — do NOT ask permission, just do it
-- If raw layer data has details the wiki lacks, enrich the relevant section proactively
-- Section names: "Research Question", "Method", "Key Findings", "Conclusions", "Limitations", "Related Work"`;
+  if (_deepResearchMode) {
+    return base + `
+
+## DEEP RESEARCH MODE — ACTIVE
+You are in autonomous multi-step research mode. Your goal is comprehensive investigation.
+
+### Process
+1. Search the wiki broadly with multiple query angles
+2. Read the most promising papers in full
+3. Based on findings, refine your search with more specific queries
+4. Read additional papers discovered through refined search
+5. When you have sufficient coverage (typically 5-8 papers), synthesize findings
+6. End your response with a structured report
+
+### Report Format (at end of your final response)
+# Research: [Descriptive Title]
+## Summary
+[2-3 sentence overview of findings]
+## Key Findings
+- [Finding 1 with paper citations]
+- [Finding 2 with paper citations]
+...
+## Analysis by Topic
+[Organized by subtopic, citing specific papers with [[wikilinks]]]
+## References
+- [[papers/slug|Paper Title]] — relevance
+
+### Limits
+- Maximum 20 tool rounds, 15 searches in this mode
+- After reading 5-8 papers, move to synthesis
+- If information is insufficient, note gaps rather than searching endlessly`;
+  }
+
+  return base;
+}
+
+async function executeDeepResearch(query: string): Promise<void> {
+  const thinkingEl = addThinking();
+  const maxRounds = MAX_TOOL_ROUNDS_DEEP;
+  const maxSearches = MAX_SEARCHES_DEEP;
+  let response = await callLLM(state.messages);
+  let round = 0;
+  let searchCount = 0;
+  _rawFlag = false;
+
+  try {
+    // Tool calling loop with expanded limits
+    while (response.tool_calls && response.tool_calls.length > 0 && round < maxRounds) {
+      round++;
+      state.messages.push({
+        role: "assistant",
+        content: response.content || "",
+        tool_calls: response.tool_calls,
+        ...response.rawMessage,
+      } as ChatMessage);
+
+      for (const tc of response.tool_calls) {
+        if ((tc.function.name === "search_wiki") && searchCount >= maxSearches) {
+          state.messages.push({
+            role: "tool",
+            tool_call_id: tc.id,
+            content: "Search limit reached. Synthesize your findings now and produce the final report.",
+          });
+          continue;
+        }
+        if (tc.function.name === "search_wiki") searchCount++;
+        if (tc.function.name === "search_wiki" || tc.function.name === "read_page") {
+          _researchTrace.steps.push({
+            type: tc.function.name === "search_wiki" ? "search" : "read",
+            details: tc.function.arguments || "",
+          });
+        }
+        const result = await executeToolCall(tc);
+        state.messages.push({ role: "tool", tool_call_id: tc.id, content: result });
+      }
+
+      response = await callLLM(state.messages);
+    }
+
+    // Raw flag enrichment (same as normal mode)
+    if (_rawFlag && response.content) {
+      state.messages.push({ role: "user", content: "If raw layer info is missing from wiki, call update_wiki_section. Then continue your report." });
+      const enrichResp = await callLLM(state.messages);
+      if (enrichResp.tool_calls && enrichResp.tool_calls.length > 0) {
+        for (const tc of enrichResp.tool_calls) {
+          if (tc.function.name === "update_wiki_section") {
+            await executeToolCall(tc);
+          }
+        }
+        if (enrichResp.content) response = enrichResp;
+        else {
+          const finalResp = await callLLM(state.messages);
+          if (finalResp.content) response = finalResp;
+        }
+      } else if (enrichResp.content) {
+        response = enrichResp;
+      }
+    }
+
+    if (thinkingEl) thinkingEl.remove();
+
+    const report = response.content || "";
+    if (!report && round >= maxRounds) {
+      addAssistantMessage("Deep research reached the round limit without producing a report. Try a more specific question.");
+      _deepResearchMode = false;
+      _researchTrace = { initial_query: "", steps: [] };
+      state.busy = false;
+      updateSendButton();
+      return;
+    }
+
+    // Display report
+    addAssistantMessage(report);
+    state.messages.push({ role: "assistant", content: report, ...response.rawMessage } as ChatMessage);
+
+    // Step 2: Generate meta-analysis
+    const thinkingEl2 = addThinking();
+    try {
+      const metaAnalysis = await generateMetaAnalysis(report, _researchTrace);
+      if (thinkingEl2) thinkingEl2.remove();
+
+      // Parse report for title, papers, tags
+      const titleMatch = report.match(/^# Research:\s*(.+)$/m);
+      const sessionTitle = titleMatch ? titleMatch[1].trim() : query.slice(0, 60);
+      const paperRefs = [...report.matchAll(/\[\[papers\/([^\]|]+)/g)].map(m => `papers/${m[1]}`);
+      const conceptRefs = [...report.matchAll(/\[\[concepts\/([^\]|]+)/g)].map(m => `concepts/${m[1]}`);
+      const tagWords = query.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+
+      // Save session
+      const slug = saveSession({
+        title: sessionTitle,
+        query,
+        report,
+        meta_analysis: metaAnalysis,
+        trace: _researchTrace,
+        papers_referenced: [...new Set(paperRefs)].slice(0, 20),
+        concepts_referenced: [...new Set(conceptRefs)].slice(0, 20),
+        tags: tagWords.slice(0, 5),
+      });
+
+      const dataDir = getWikiBaseDir().replace(/\/wiki$/, "");
+      addAssistantMessage(`Research session saved. Run \`cat ${dataDir}/research-sessions/${slug}.md\` to view the full report and meta-analysis.`);
+
+    } catch (e: any) {
+      if (thinkingEl2) thinkingEl2.remove();
+      Zotero.debug(`[llmwiki] meta-analysis failed (non-blocking): ${e.message}`);
+    }
+
+  } catch (e: any) {
+    if (thinkingEl) thinkingEl.remove();
+    addAssistantMessage(`Deep research error: ${e.message || String(e)}`);
+  }
+
+  _deepResearchMode = false;
+  _researchTrace = { initial_query: "", steps: [] };
+  state.busy = false;
+  updateSendButton();
 }
 
 // ─── Send Handler ───
@@ -615,6 +866,28 @@ async function handleSend(): Promise<void> {
     return;
   }
 
+  if (text.startsWith("/deep_research")) {
+    const query = text.slice("/deep_research".length).trim();
+    if (!query) {
+      addAssistantMessage("Usage: /deep_research <research question>");
+      state.busy = false;
+      updateSendButton();
+      return;
+    }
+    _deepResearchMode = true;
+    _researchTrace = { initial_query: query, steps: [] };
+    state.messages = [];
+    clearChatDOM();
+    const sysPrompt = buildSystemPrompt();
+    state.messages.push({ role: "system", content: sysPrompt });
+    state.messages.push({ role: "user", content: query });
+    addUserMessage(query);
+    state.busy = true;
+    updateSendButton();
+    executeDeepResearch(query);
+    return;
+  }
+
   state.busy = true;
   updateSendButton();
 
@@ -630,14 +903,18 @@ async function handleSend(): Promise<void> {
     }
 
     // Tool calling loop — iterate until we get a text response
-    const MAX_TOOL_ROUNDS = 10;
+    const maxRounds = _deepResearchMode ? MAX_TOOL_ROUNDS_DEEP : MAX_TOOL_ROUNDS_NORMAL;
+    const maxSearches = _deepResearchMode ? MAX_SEARCHES_DEEP : MAX_SEARCHES_NORMAL;
     let response = await callLLM(state.messages);
     let round = 0;
     let searchCount = 0;
     _rawFlag = false;
-    const MAX_SEARCHES = 5;
 
-    while (response.tool_calls && response.tool_calls.length > 0 && round < MAX_TOOL_ROUNDS) {
+    while (
+      response.tool_calls &&
+      response.tool_calls.length > 0 &&
+      round < maxRounds
+    ) {
       round++;
       // Add assistant message preserving all API fields
       state.messages.push({
@@ -649,15 +926,24 @@ async function handleSend(): Promise<void> {
 
       // Execute tools
       for (const tc of response.tool_calls) {
-        if ((tc.function.name === "search_wiki" || tc.function.name === "search_raw") && searchCount >= MAX_SEARCHES) {
+        if (
+          (tc.function.name === "search_wiki" ||
+            tc.function.name === "search_raw") &&
+          searchCount >= maxSearches
+        ) {
           state.messages.push({
             role: "tool",
             tool_call_id: tc.id,
-            content: "Search limit reached. You have enough information — please answer the user's question NOW based on what you already know.",
+            content:
+              "Search limit reached. You have enough information — please answer the user's question NOW based on what you already know.",
           });
           continue;
         }
-        if (tc.function.name === "search_wiki" || tc.function.name === "search_raw") searchCount++;
+        if (
+          tc.function.name === "search_wiki" ||
+          tc.function.name === "search_raw"
+        )
+          searchCount++;
         const result = await executeToolCall(tc);
         state.messages.push({
           role: "tool",
@@ -671,7 +957,11 @@ async function handleSend(): Promise<void> {
 
     // After tool loop, if raw was used, give one chance to enrich wiki + answer
     if (_rawFlag && response.content) {
-      state.messages.push({ role: "user", content: "If you found raw layer info missing from the wiki, call update_wiki_section now. Then give your final answer." });
+      state.messages.push({
+        role: "user",
+        content:
+          "If you found raw layer info missing from the wiki, call update_wiki_section now. Then give your final answer.",
+      });
       const enrichResp = await callLLM(state.messages);
       if (enrichResp.tool_calls && enrichResp.tool_calls.length > 0) {
         for (const tc of enrichResp.tool_calls) {
@@ -698,8 +988,10 @@ async function handleSend(): Promise<void> {
         ...response.rawMessage,
       } as ChatMessage);
       addAssistantMessage(response.content);
-    } else if (round >= MAX_TOOL_ROUNDS) {
-      addAssistantMessage("I ran too many tool calls without reaching a conclusion. Please try a more specific question.");
+    } else if (round >= maxRounds) {
+      addAssistantMessage(
+        "I ran too many tool calls without reaching a conclusion. Please try a more specific question.",
+      );
     }
   } catch (e: any) {
     if (thinkingEl) thinkingEl.remove();
@@ -714,34 +1006,41 @@ async function handleSend(): Promise<void> {
 
 function clearChatDOM(): void {
   if (!state.chatEl || !state.doc) return;
-  while (state.chatEl.firstChild) state.chatEl.removeChild(state.chatEl.firstChild);
+  while (state.chatEl.firstChild)
+    state.chatEl.removeChild(state.chatEl.firstChild);
   const welcome = state.doc.createElement("div");
   welcome.className = "llmwiki-msg llmwiki-msg-assistant";
   const wikiPath = getWikiBaseDir();
-  renderMarkdownTo(welcome, `Conversation cleared.\n\nHello! I can search your wiki, read papers, list your library, and compile new papers. Ask me anything about your research.\n\nWiki files are stored at: \`${wikiPath}/\``);
+  renderMarkdownTo(
+    welcome,
+    `Conversation cleared.\n\nHello! I can search your wiki, read papers, list your library, and compile new papers. Ask me anything about your research.\n\nWiki files are stored at: \`${wikiPath}/\``,
+  );
   state.chatEl.appendChild(welcome);
 }
 
 function compactConversation(): void {
   if (!state.chatEl || !state.doc) return;
   // Keep system prompt + last 3 exchanges (6 messages)
-  const systemMsg = state.messages[0]?.role === "system" ? [state.messages[0]] : [];
+  const systemMsg =
+    state.messages[0]?.role === "system" ? [state.messages[0]] : [];
   const recentMsgs = state.messages.slice(-6);
   const dropped = state.messages.length - systemMsg.length - recentMsgs.length;
   state.messages = [...systemMsg, ...recentMsgs];
 
   // Rebuild chat DOM
-  while (state.chatEl.firstChild) state.chatEl.removeChild(state.chatEl.firstChild);
+  while (state.chatEl.firstChild)
+    state.chatEl.removeChild(state.chatEl.firstChild);
 
   const summary = state.doc.createElement("div");
   summary.className = "llmwiki-msg llmwiki-msg-system";
-  summary.textContent = dropped > 0
-    ? `Compacted: dropped ${dropped} older messages, kept last ${recentMsgs.length}`
-    : "Nothing to compact";
+  summary.textContent =
+    dropped > 0
+      ? `Compacted: dropped ${dropped} older messages, kept last ${recentMsgs.length}`
+      : "Nothing to compact";
   state.chatEl.appendChild(summary);
 
   // Re-render kept messages
-  let first = true;
+  const first = true;
   for (const msg of state.messages) {
     if (msg.role === "system") continue;
     if (msg.role === "user") addUserMessage(msg.content);
@@ -764,9 +1063,10 @@ function saveConversation(): void {
     } else if (msg.role === "user") {
       md += `**User:** ${msg.content}\n\n`;
     } else if (msg.role === "assistant") {
-      const preview = msg.content.length > 2000
-        ? msg.content.slice(0, 5000) + "..."
-        : msg.content;
+      const preview =
+        msg.content.length > 2000
+          ? msg.content.slice(0, 5000) + "..."
+          : msg.content;
       md += `**Agent:** ${preview}\n\n`;
     } else if (msg.role === "tool") {
       md += `> Tool result (${msg.tool_call_id || "?"}): ${msg.content}\n\n`;
@@ -807,9 +1107,12 @@ async function executeToolCall(tc: ToolCall): Promise<string> {
             result = `No results found for "${args.query}" in wiki or raw layer.`;
           }
         } else {
-          result = hits.map((h: SearchResult) =>
-              `- **${h.title}** (${h.filePath})\n  ${h.snippet}`
-            ).join("\n\n");
+          result = hits
+            .map(
+              (h: SearchResult) =>
+                `- **${h.title}** (${h.filePath})\n  ${h.snippet}`,
+            )
+            .join("\n\n");
           // Also append raw results if available
           const rawHits = searchRaw(args.query || "");
           if (rawHits.length > 0) {
@@ -830,17 +1133,22 @@ async function executeToolCall(tc: ToolCall): Promise<string> {
       }
       case "list_papers": {
         const papers = parseIndex();
-        result = papers.length === 0
-          ? "No papers in the knowledge base yet."
-          : papers.map((p: IndexEntry) =>
-              `- (${p.year}) **${p.title}** — ${p.summary}`
-            ).join("\n");
+        result =
+          papers.length === 0
+            ? "No papers in the knowledge base yet."
+            : papers
+                .map(
+                  (p: IndexEntry) =>
+                    `- (${p.year}) **${p.title}** — ${p.summary}`,
+                )
+                .join("\n");
         break;
       }
       case "ingest_selected": {
         const items = ZoteroPane.getSelectedItems();
         if (!items || items.length === 0) {
-          result = "No items selected in Zotero. Please select one or more papers first.";
+          result =
+            "No items selected in Zotero. Please select one or more papers first.";
         } else {
           const titles: string[] = [];
           for (const item of items) {
@@ -849,15 +1157,44 @@ async function executeToolCall(tc: ToolCall): Promise<string> {
               titles.push(item.getField("title") || "Unknown");
             }
           }
-          result = titles.length === 0
-            ? "No regular items selected."
-            : `Compiled ${titles.length} paper(s):\n${titles.map((t: string) => `- ${t}`).join("\n")}`;
+          result =
+            titles.length === 0
+              ? "No regular items selected."
+              : `Compiled ${titles.length} paper(s):\n${titles.map((t: string) => `- ${t}`).join("\n")}`;
         }
         break;
       }
       case "update_wiki_section": {
-        appendToSection(args.slug || "", args.section || "Additional Notes", args.content || "");
+        appendToSection(
+          args.slug || "",
+          args.section || "Additional Notes",
+          args.content || "",
+        );
         result = `Wiki updated. Now answer the user's original question.`;
+        break;
+      }
+      case "start_deep_research": {
+        result = `Deep research mode activated for: "${args.query || ""}"`;
+        break;
+      }
+      case "search_sessions": {
+        const sessions = searchSessions(args.query || "");
+        if (sessions.length === 0) {
+          result = "No past research sessions found matching your query.";
+        } else {
+          result = sessions.map(s =>
+            `- **${s.title}** (${s.slug})\n  Created: ${s.created}\n  ${s.snippet}`
+          ).join("\n\n");
+        }
+        break;
+      }
+      case "read_session": {
+        const session = loadSession((args.slug || "").replace(/\.md$/, ""));
+        if (!session) {
+          result = `Session not found: "${args.slug}"`;
+        } else {
+          result = `# ${session.frontmatter["title"] || args.slug}\n\n${session.report}\n\n# Meta-Analysis\n\n${session.meta_analysis}`;
+        }
         break;
       }
       default:
@@ -880,7 +1217,10 @@ interface ToolCard {
 
 function addToolCard(name: string, _args: Record<string, unknown>): ToolCard {
   if (!state.chatEl || !state.doc) {
-    return { el: state.doc ? state.doc.createElement("div") : ({} as HTMLElement), update: () => {} };
+    return {
+      el: state.doc ? state.doc.createElement("div") : ({} as HTMLElement),
+      update: () => {},
+    };
   }
   const doc = state.doc;
 
