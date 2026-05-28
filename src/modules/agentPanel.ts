@@ -669,33 +669,55 @@ When the user's question clearly requires multi-paper comparison, literature rev
     return base + `
 
 ## DEEP RESEARCH MODE — ACTIVE
-You are in autonomous multi-step research mode. Your goal is comprehensive investigation.
+You are in autonomous multi-step research mode.
 
-### Process
-1. Search the wiki broadly with multiple query angles
-2. Read the most promising papers in full
-3. Based on findings, refine your search with more specific queries
-4. Read additional papers discovered through refined search
-5. When you have sufficient coverage (typically 5-8 papers), synthesize findings
-6. End your response with a structured report
+### Phase Plan (follow strictly — advance phase after completing its goal)
 
-### Report Format (at end of your final response)
+**Phase 1 — Explore (Rounds 1-2):**
+- Goal: Understand what the wiki has on this topic
+- Call search_wiki 2-3 times with different query angles
+- Do NOT call read_page or update_wiki_section yet
+- After 2 search rounds → advance to Phase 2
+
+**Phase 2 — Deep Read (Rounds 3-4):**
+- Goal: Read the most relevant papers in detail
+- read_page for the top 3-5 most relevant papers from Phase 1 results
+- Do NOT search again unless Phase 1 missed something critical
+- Max 5 read_page calls in this phase
+- After reading key papers → advance to Phase 3
+
+**Phase 3 — Synthesize (Rounds 5-6):**
+- Goal: Produce the final report
+- Do NOT call any more tools — you have enough information
+- Generate the complete # Research: report (see format below)
+- If you must call a tool, call update_wiki_section at most 2 times total, then stop
+
+### Hard Limits (code-enforced, will block you)
+| Limit | Value | Consequence |
+|-------|-------|-------------|
+| Total tool rounds | 20 | Loop ends, report required |
+| Total search_wiki calls | 15 | Further searches return error |
+| Total read_page calls | 8 | Further reads return error |
+| update_wiki_section calls | 3 | Further updates return error |
+| Phase 3 rounds | 2 | You MUST synthesize after 2 Phase-3 rounds |
+
+### Report Format (output as your final message, no tool calls)
 # Research: [Descriptive Title]
 ## Summary
-[2-3 sentence overview of findings]
+[2-3 sentence overview]
 ## Key Findings
-- [Finding 1 with paper citations]
-- [Finding 2 with paper citations]
-...
+- [Finding with paper citations]
 ## Analysis by Topic
-[Organized by subtopic, citing specific papers with [[wikilinks]]]
+[Subtopic-organized, citing papers with [[wikilinks]]]
 ## References
-- [[papers/slug|Paper Title]] — relevance
+- [[papers/slug|Paper Title]]
 
-### Limits
-- Maximum 20 tool rounds, 15 searches in this mode
-- After reading 5-8 papers, move to synthesis
-- If information is insufficient, note gaps rather than searching endlessly`;
+### Self-Check Before Each Tool Call
+Before calling any tool, ask yourself:
+1. "Which phase am I in?" → If Phase 3, do NOT call tools
+2. "Have I read enough papers?" → If you've read 5+, stop and synthesize
+3. "Is this search query substantially different from my previous ones?" → If not, skip it
+4. "Will this update_wiki_section help the current report?" → If not, skip it`;
   }
 
   return base;
@@ -742,6 +764,10 @@ async function executeDeepResearch(query: string): Promise<void> {
   Zotero.debug(`[llmwiki] deep_research: initial response — content=${!!response.content}, tool_calls=${response.tool_calls?.length || 0}`);
   let round = 0;
   let searchCount = 0;
+  let readCount = 0;
+  let wikiUpdateCount = 0;
+  const MAX_READS = 8;
+  const MAX_WIKI_UPDATES = 3;
   _rawFlag = false;
 
   try {
@@ -766,6 +792,28 @@ async function executeDeepResearch(query: string): Promise<void> {
           continue;
         }
         if (tc.function.name === "search_wiki") searchCount++;
+        if (tc.function.name === "read_page") {
+          if (readCount >= MAX_READS) {
+            state.messages.push({
+              role: "tool",
+              tool_call_id: tc.id,
+              content: "Read limit reached (8 papers). You have enough information — synthesize your report now.",
+            });
+            continue;
+          }
+          readCount++;
+        }
+        if (tc.function.name === "update_wiki_section") {
+          if (wikiUpdateCount >= MAX_WIKI_UPDATES) {
+            state.messages.push({
+              role: "tool",
+              tool_call_id: tc.id,
+              content: "Wiki update limit reached (3 updates). Focus on research — stop updating wiki pages.",
+            });
+            continue;
+          }
+          wikiUpdateCount++;
+        }
         if (tc.function.name === "search_wiki" || tc.function.name === "read_page") {
           _researchTrace.steps.push({
             type: tc.function.name === "search_wiki" ? "search" : "read",
