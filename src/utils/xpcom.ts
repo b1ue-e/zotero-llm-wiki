@@ -22,8 +22,9 @@ function getRawDir(): string {
 
 function makeDir(path: string): void {
   // @ts-expect-error - Mozilla XPCOM
-  const nsIFile = Components.classes["@mozilla.org/file/local;1"]
-    .createInstance(Components.interfaces.nsIFile) as any;
+  const nsIFile = Components.classes[
+    "@mozilla.org/file/local;1"
+  ].createInstance(Components.interfaces.nsIFile) as any;
   nsIFile.initWithPath(path);
   if (!nsIFile.exists()) {
     nsIFile.create(Components.interfaces.nsIFile.DIRECTORY_TYPE, 0o755);
@@ -32,16 +33,19 @@ function makeDir(path: string): void {
 
 function writeFile(path: string, content: string): void {
   // @ts-expect-error - Mozilla XPCOM
-  const file = Components.classes["@mozilla.org/file/local;1"]
-    .createInstance(Components.interfaces.nsIFile) as any;
+  const file = Components.classes["@mozilla.org/file/local;1"].createInstance(
+    Components.interfaces.nsIFile,
+  ) as any;
   file.initWithPath(path);
   // @ts-expect-error - Mozilla XPCOM
-  const stream = Components.classes["@mozilla.org/network/file-output-stream;1"]
-    .createInstance(Components.interfaces.nsIFileOutputStream) as any;
+  const stream = Components.classes[
+    "@mozilla.org/network/file-output-stream;1"
+  ].createInstance(Components.interfaces.nsIFileOutputStream) as any;
   stream.init(file, 0x02 | 0x08 | 0x20, 0o644, 0);
   // @ts-expect-error - Mozilla XPCOM
-  const converter = Components.classes["@mozilla.org/intl/converter-output-stream;1"]
-    .createInstance(Components.interfaces.nsIConverterOutputStream) as any;
+  const converter = Components.classes[
+    "@mozilla.org/intl/converter-output-stream;1"
+  ].createInstance(Components.interfaces.nsIConverterOutputStream) as any;
   converter.init(stream, "UTF-8", 0, 0x0000);
   converter.writeString(content);
   converter.close();
@@ -50,17 +54,20 @@ function writeFile(path: string, content: string): void {
 
 function readFile(path: string): string | null {
   // @ts-expect-error - Mozilla XPCOM
-  const file = Components.classes["@mozilla.org/file/local;1"]
-    .createInstance(Components.interfaces.nsIFile) as any;
+  const file = Components.classes["@mozilla.org/file/local;1"].createInstance(
+    Components.interfaces.nsIFile,
+  ) as any;
   file.initWithPath(path);
   if (!file.exists()) return null;
   // @ts-expect-error - Mozilla XPCOM
-  const stream = Components.classes["@mozilla.org/network/file-input-stream;1"]
-    .createInstance(Components.interfaces.nsIFileInputStream) as any;
+  const stream = Components.classes[
+    "@mozilla.org/network/file-input-stream;1"
+  ].createInstance(Components.interfaces.nsIFileInputStream) as any;
   stream.init(file, 0x01, 0o644, 0);
   // @ts-expect-error - Mozilla XPCOM
-  const converter = Components.classes["@mozilla.org/intl/converter-input-stream;1"]
-    .createInstance(Components.interfaces.nsIConverterInputStream) as any;
+  const converter = Components.classes[
+    "@mozilla.org/intl/converter-input-stream;1"
+  ].createInstance(Components.interfaces.nsIConverterInputStream) as any;
   converter.init(stream, "UTF-8", 0, 0);
   const str: { value: string } = { value: "" };
   converter.readString(-1, str);
@@ -71,16 +78,19 @@ function readFile(path: string): string | null {
 
 function writeBinaryFile(path: string, content: string): void {
   // @ts-expect-error - Mozilla XPCOM
-  const file = Components.classes["@mozilla.org/file/local;1"]
-    .createInstance(Components.interfaces.nsIFile) as any;
+  const file = Components.classes["@mozilla.org/file/local;1"].createInstance(
+    Components.interfaces.nsIFile,
+  ) as any;
   file.initWithPath(path);
   // @ts-expect-error - Mozilla XPCOM
-  const stream = Components.classes["@mozilla.org/network/file-output-stream;1"]
-    .createInstance(Components.interfaces.nsIFileOutputStream) as any;
+  const stream = Components.classes[
+    "@mozilla.org/network/file-output-stream;1"
+  ].createInstance(Components.interfaces.nsIFileOutputStream) as any;
   stream.init(file, 0x02 | 0x08 | 0x20, 0o644, 0);
   // @ts-expect-error - Mozilla XPCOM
-  const bout = Components.classes["@mozilla.org/binaryoutputstream;1"]
-    .createInstance(Components.interfaces.nsIBinaryOutputStream) as any;
+  const bout = Components.classes[
+    "@mozilla.org/binaryoutputstream;1"
+  ].createInstance(Components.interfaces.nsIBinaryOutputStream) as any;
   bout.setOutputStream(stream);
   bout.writeBytes(content, content.length);
   bout.close();
@@ -89,18 +99,21 @@ function writeBinaryFile(path: string, content: string): void {
 
 function readBinaryFile(path: string): string | null {
   // @ts-expect-error - Mozilla XPCOM
-  const file = Components.classes["@mozilla.org/file/local;1"]
-    .createInstance(Components.interfaces.nsIFile) as any;
+  const file = Components.classes["@mozilla.org/file/local;1"].createInstance(
+    Components.interfaces.nsIFile,
+  ) as any;
   file.initWithPath(path);
   if (!file.exists()) return null;
   // @ts-expect-error - Mozilla XPCOM
-  const stream = Components.classes["@mozilla.org/network/file-input-stream;1"]
-    .createInstance(Components.interfaces.nsIFileInputStream) as any;
+  const stream = Components.classes[
+    "@mozilla.org/network/file-input-stream;1"
+  ].createInstance(Components.interfaces.nsIFileInputStream) as any;
   stream.init(file, 0x01, 0o644, 0);
   const available = stream.available();
   // @ts-expect-error - Mozilla XPCOM
-  const data = Components.classes["@mozilla.org/binaryinputstream;1"]
-    .createInstance(Components.interfaces.nsIBinaryInputStream) as any;
+  const data = Components.classes[
+    "@mozilla.org/binaryinputstream;1"
+  ].createInstance(Components.interfaces.nsIBinaryInputStream) as any;
   data.setInputStream(stream);
   const text = data.readBytes(available);
   stream.close();
@@ -109,8 +122,9 @@ function readBinaryFile(path: string): string | null {
 
 function listDir(path: string): string[] {
   // @ts-expect-error - Mozilla XPCOM
-  const dir = Components.classes["@mozilla.org/file/local;1"]
-    .createInstance(Components.interfaces.nsIFile) as any;
+  const dir = Components.classes["@mozilla.org/file/local;1"].createInstance(
+    Components.interfaces.nsIFile,
+  ) as any;
   try {
     dir.initWithPath(path);
   } catch {
@@ -145,27 +159,31 @@ function appendDebugLog(msg: string): void {
     const dir = path.substring(0, path.lastIndexOf("/"));
     // Ensure llm-wiki directory exists
     // @ts-expect-error - Mozilla XPCOM
-    const dirFile = Components.classes["@mozilla.org/file/local;1"]
-      .createInstance(Components.interfaces.nsIFile) as any;
+    const dirFile = Components.classes[
+      "@mozilla.org/file/local;1"
+    ].createInstance(Components.interfaces.nsIFile) as any;
     dirFile.initWithPath(dir);
     if (!dirFile.exists()) {
       dirFile.create(Components.interfaces.nsIFile.DIRECTORY_TYPE, 0o755);
     }
 
     // @ts-expect-error - Mozilla XPCOM
-    const file = Components.classes["@mozilla.org/file/local;1"]
-      .createInstance(Components.interfaces.nsIFile) as any;
+    const file = Components.classes["@mozilla.org/file/local;1"].createInstance(
+      Components.interfaces.nsIFile,
+    ) as any;
     file.initWithPath(path);
 
     // @ts-expect-error - Mozilla XPCOM
-    const stream = Components.classes["@mozilla.org/network/file-output-stream;1"]
-      .createInstance(Components.interfaces.nsIFileOutputStream) as any;
+    const stream = Components.classes[
+      "@mozilla.org/network/file-output-stream;1"
+    ].createInstance(Components.interfaces.nsIFileOutputStream) as any;
     // PR_WRONLY | PR_CREATE_FILE | PR_APPEND
     stream.init(file, 0x02 | 0x08 | 0x10, 0o644, 0);
 
     // @ts-expect-error - Mozilla XPCOM
-    const converter = Components.classes["@mozilla.org/intl/converter-output-stream;1"]
-      .createInstance(Components.interfaces.nsIConverterOutputStream) as any;
+    const converter = Components.classes[
+      "@mozilla.org/intl/converter-output-stream;1"
+    ].createInstance(Components.interfaces.nsIConverterOutputStream) as any;
     converter.init(stream, "UTF-8", 0, 0x0000);
     converter.writeString(msg + "\n");
     converter.close();
@@ -177,8 +195,9 @@ function appendDebugLog(msg: string): void {
 
 function fileExists(path: string): boolean {
   // @ts-expect-error - Mozilla XPCOM
-  const file = Components.classes["@mozilla.org/file/local;1"]
-    .createInstance(Components.interfaces.nsIFile) as any;
+  const file = Components.classes["@mozilla.org/file/local;1"].createInstance(
+    Components.interfaces.nsIFile,
+  ) as any;
   file.initWithPath(path);
   return file.exists();
 }

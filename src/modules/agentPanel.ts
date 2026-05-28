@@ -912,7 +912,13 @@ async function handleSend(): Promise<void> {
     addUserMessage(query);
     state.busy = true;
     updateSendButton();
-    executeDeepResearch(query);
+    executeDeepResearch(query).catch((e: any) => {
+      Zotero.debug(`[llmwiki] deep_research unhandled error: ${e?.message || e}`);
+      addAssistantMessage(`Deep research error: ${e?.message || String(e)}`);
+      _deepResearchMode = false;
+      state.busy = false;
+      updateSendButton();
+    });
     return;
   }
 

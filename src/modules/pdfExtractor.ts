@@ -5,7 +5,9 @@ import { readBinaryFile } from "../utils/xpcom";
  * Uses Zotero's built-in PDF indexing engine + cache decompression.
  * Returns null if no PDF found or extraction fails — does NOT block ingest.
  */
-export async function extractFulltext(item: Zotero.Item): Promise<string | null> {
+export async function extractFulltext(
+  item: Zotero.Item,
+): Promise<string | null> {
   try {
     const attachmentIDs: number[] = item.getAttachments?.() || [];
     if (attachmentIDs.length === 0) return null;
@@ -14,10 +16,11 @@ export async function extractFulltext(item: Zotero.Item): Promise<string | null>
       const att = Zotero.Items.get(attID);
       if (!att) continue;
 
-      const ct = (att as any).attachmentContentType
-        || att.getField?.("contentType")
-        || (att as any).attachmentMIMEType
-        || "";
+      const ct =
+        (att as any).attachmentContentType ||
+        att.getField?.("contentType") ||
+        (att as any).attachmentMIMEType ||
+        "";
       if (ct !== "application/pdf") continue;
 
       try {
@@ -34,7 +37,10 @@ export async function extractFulltext(item: Zotero.Item): Promise<string | null>
   }
 }
 
-async function extractFromAttachment(item: Zotero.Item, att: Zotero.Item): Promise<string | null> {
+async function extractFromAttachment(
+  item: Zotero.Item,
+  att: Zotero.Item,
+): Promise<string | null> {
   // Fulltext operations work on the PDF ATTACHMENT, not the parent item
   // Strategy 1: Try already-indexed cache
   try {
@@ -46,7 +52,9 @@ async function extractFromAttachment(item: Zotero.Item, att: Zotero.Item): Promi
       if (text) return text;
     }
   } catch (e: any) {
-    Zotero.debug(`[llmwiki] pdfExtractor: cache check failed: ${e.message || e}`);
+    Zotero.debug(
+      `[llmwiki] pdfExtractor: cache check failed: ${e.message || e}`,
+    );
   }
 
   // Strategy 2: Trigger indexing on the attachment, wait, read cache
@@ -55,7 +63,9 @@ async function extractFromAttachment(item: Zotero.Item, att: Zotero.Item): Promi
     const filePath = att.getFilePath?.() || att._path;
     if (!filePath) return null;
 
-    Zotero.debug(`[llmwiki] pdfExtractor: indexing PDF at ${filePath} attID=${att.id}`);
+    Zotero.debug(
+      `[llmwiki] pdfExtractor: indexing PDF at ${filePath} attID=${att.id}`,
+    );
     const ok = await Zotero.Fulltext.indexPDF(filePath, att.id);
     Zotero.debug(`[llmwiki] pdfExtractor: indexPDF result=${ok}`);
 
@@ -97,7 +107,9 @@ function tryReadCache(item: Zotero.Item): string | null {
 
     return null;
   } catch (e: any) {
-    Zotero.debug(`[llmwiki] pdfExtractor: cache read failed: ${e.message || e}`);
+    Zotero.debug(
+      `[llmwiki] pdfExtractor: cache read failed: ${e.message || e}`,
+    );
     return null;
   }
 }
@@ -108,8 +120,9 @@ function tryReadCache(item: Zotero.Item): string | null {
 function decompressGzip(raw: string): string | null {
   try {
     // @ts-expect-error - XPCOM
-    const inputStream = Components.classes["@mozilla.org/io/string-input-stream;1"]
-      .createInstance(Components.interfaces.nsIStringInputStream);
+    const inputStream = Components.classes[
+      "@mozilla.org/io/string-input-stream;1"
+    ].createInstance(Components.interfaces.nsIStringInputStream);
     // Firefox 115: use adoptData or setByteStringData (setData is deprecated)
     if (typeof (inputStream as any).adoptData === "function") {
       (inputStream as any).adoptData(raw, raw.length);
@@ -120,21 +133,30 @@ function decompressGzip(raw: string): string | null {
     }
 
     // @ts-expect-error - XPCOM
-    const converterService = Components.classes["@mozilla.org/streamConverters;1"]
-      .getService(Components.interfaces.nsIStreamConverterService);
+    const converterService = Components.classes[
+      "@mozilla.org/streamConverters;1"
+    ].getService(Components.interfaces.nsIStreamConverterService);
 
-    const convertedStream = (converterService as any).convert(inputStream, "gzip", "uncompressed", null);
+    const convertedStream = (converterService as any).convert(
+      inputStream,
+      "gzip",
+      "uncompressed",
+      null,
+    );
 
     // @ts-expect-error - XPCOM
-    const scriptableStream = Components.classes["@mozilla.org/scriptableinputstream;1"]
-      .createInstance(Components.interfaces.nsIScriptableInputStream);
+    const scriptableStream = Components.classes[
+      "@mozilla.org/scriptableinputstream;1"
+    ].createInstance(Components.interfaces.nsIScriptableInputStream);
     scriptableStream.init(convertedStream);
 
     const available = scriptableStream.available();
     if (available <= 0) return null;
     return scriptableStream.read(available);
   } catch (e: any) {
-    Zotero.debug(`[llmwiki] pdfExtractor: gzip decompress failed: ${e.message || e}`);
+    Zotero.debug(
+      `[llmwiki] pdfExtractor: gzip decompress failed: ${e.message || e}`,
+    );
     return null;
   }
 }

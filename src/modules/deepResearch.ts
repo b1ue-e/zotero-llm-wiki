@@ -99,12 +99,20 @@ function rebuildIndex(): ResearchIndexEntry[] {
 
 function readIndex(): ResearchIndexEntry[] {
   const path = `${getResearchDir()}/index.json`;
-  const content = readFile(path);
+  let content: string | null = null;
+  try {
+    content = readFile(path);
+  } catch (e: any) {
+    Zotero.debug(`[llmwiki] deepResearch: index.json unreadable (binary garbage?), rebuilding. ${e.message}`);
+    const rebuilt = rebuildIndex();
+    try { writeIndex(rebuilt); } catch (_) { /* non-blocking */ }
+    return rebuilt;
+  }
   if (!content) return [];
   try {
     return JSON.parse(content) as ResearchIndexEntry[];
   } catch (e) {
-    Zotero.debug(`deepResearch: index.json corruption, rebuilding. ${e}`);
+    Zotero.debug(`[llmwiki] deepResearch: index.json corruption, rebuilding. ${e}`);
     const rebuilt = rebuildIndex();
     writeIndex(rebuilt);
     return rebuilt;

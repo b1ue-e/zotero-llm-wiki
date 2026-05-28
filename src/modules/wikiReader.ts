@@ -31,7 +31,10 @@ export interface IndexEntry {
 
 // ─── Frontmatter Parser ───
 
-export function parseFrontmatter(raw: string): { frontmatter: Record<string, string>; body: string } {
+export function parseFrontmatter(raw: string): {
+  frontmatter: Record<string, string>;
+  body: string;
+} {
   if (!raw.startsWith("---")) {
     return { frontmatter: {}, body: raw };
   }
@@ -48,8 +51,10 @@ export function parseFrontmatter(raw: string): { frontmatter: Record<string, str
     if (colonIdx === -1) continue;
     const key = line.slice(0, colonIdx).trim();
     let value = line.slice(colonIdx + 1).trim();
-    if ((value.startsWith('"') && value.endsWith('"')) ||
-        (value.startsWith("'") && value.endsWith("'"))) {
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
       value = value.slice(1, -1);
     }
     if (key) frontmatter[key] = value;
@@ -177,7 +182,8 @@ export function searchPages(query: string): SearchResult[] {
         const matchIdx = bodyLower.indexOf(q);
         const start = Math.max(0, matchIdx - 50);
         const end = Math.min(page.body.length, matchIdx + q.length + 100);
-        const snippet = (start > 0 ? "…" : "") +
+        const snippet =
+          (start > 0 ? "…" : "") +
           page.body.slice(start, end).replace(/\n/g, " ") +
           (end < page.body.length ? "…" : "");
 

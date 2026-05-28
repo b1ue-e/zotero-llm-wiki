@@ -60,7 +60,7 @@ The `addon` global singleton is created in `src/index.ts` and mounted on `Zotero
 
 The project uses a Karpathy-style "raw + wiki" pattern:
 
-- **Raw layer** (`rawStorage.ts`): Immutable JSON snapshots of paper metadata + fulltext, saved *before* the LLM call. Lives in `llm-wiki/raw/papers/{slug}.json`. Serves as a searchable fallback when wiki pages lack information.
+- **Raw layer** (`rawStorage.ts`): Immutable JSON snapshots of paper metadata + fulltext, saved _before_ the LLM call. Lives in `llm-wiki/raw/papers/{slug}.json`. Serves as a searchable fallback when wiki pages lack information.
 - **Wiki layer** (`wikiStorage.ts` + `wikiReader.ts`): LLM-generated structured Markdown pages in `llm-wiki/wiki/papers/{slug}.md`, plus `index.md` (catalog) and `log.md` (append-only operation log). Directories `concepts/` and `entities/` are pre-created for future use.
 
 ### Agent panel tool-calling loop

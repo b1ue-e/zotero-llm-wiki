@@ -45,7 +45,9 @@ export async function writeWikiPage(
     ...(metadata.authors ? [`authors: "${escapeYaml(metadata.authors)}"`] : []),
     ...(metadata.year ? [`year: ${metadata.year}`] : []),
     ...(metadata.doi ? [`doi: "${metadata.doi}"`] : []),
-    ...(metadata.publication ? [`publication: "${escapeYaml(metadata.publication)}"`] : []),
+    ...(metadata.publication
+      ? [`publication: "${escapeYaml(metadata.publication)}"`]
+      : []),
     `tags: [${tagStr}]`,
     "---",
     "",
@@ -67,7 +69,11 @@ export async function writeWikiPage(
 
 // ─── index.md ───
 
-function updateIndex(slug: string, title: string, metadata: PaperMetadata): void {
+function updateIndex(
+  slug: string,
+  title: string,
+  metadata: PaperMetadata,
+): void {
   const indexPath = `${getWikiBaseDir()}/index.md`;
   const now = new Date().toISOString().slice(0, 10);
   const line = `- (${metadata.year || "?"}) [[papers/${slug}|${title}]] | ${extractSummary(metadata)}`;
@@ -92,20 +98,11 @@ function updateIndex(slug: string, title: string, metadata: PaperMetadata): void
     ].join("\n");
   } else {
     // Replace updated date
-    content = content.replace(
-      /^updated: .*$/m,
-      `updated: ${now}`,
-    );
-    content = content.replace(
-      /^Last updated: .*$/m,
-      `Last updated: ${now}`,
-    );
+    content = content.replace(/^updated: .*$/m, `updated: ${now}`);
+    content = content.replace(/^Last updated: .*$/m, `Last updated: ${now}`);
     // Append new entry under ## Papers
     if (!content.includes(line)) {
-      content = content.replace(
-        /(## Papers\n)/,
-        `$1${line}\n`,
-      );
+      content = content.replace(/(## Papers\n)/, `$1${line}\n`);
     }
   }
   writeFile(indexPath, content);
@@ -142,10 +139,14 @@ function extractSummary(metadata: PaperMetadata): string {
 
 function buildTags(metadata: PaperMetadata): string[] {
   const tags: string[] = [];
-  const text = `${metadata.title} ${metadata.abstract || ""} ${metadata.publication || ""}`.toLowerCase();
+  const text =
+    `${metadata.title} ${metadata.abstract || ""} ${metadata.publication || ""}`.toLowerCase();
   // Simple keyword detection
   const keywords: [string, RegExp][] = [
-    ["machine-learning", /machine.learning|deep.learning|neural.network|transformer|llm/i],
+    [
+      "machine-learning",
+      /machine.learning|deep.learning|neural.network|transformer|llm/i,
+    ],
     ["genomics", /genom|gene|dna|rna|protein|mutation|hereditary/i],
     ["neuroscience", /neuron|brain|neural|cognit|cortex/i],
     ["immunology", /immun|t.cell|b.cell|antibod/i],
@@ -216,7 +217,8 @@ export function buildUserPrompt(metadata: PaperMetadata): string {
   if (metadata.authors) parts.push(`# Authors\n${metadata.authors}`);
   if (metadata.abstract) parts.push(`# Abstract\n${metadata.abstract}`);
   if (metadata.year) parts.push(`# Year\n${metadata.year}`);
-  if (metadata.publication) parts.push(`# Publication\n${metadata.publication}`);
+  if (metadata.publication)
+    parts.push(`# Publication\n${metadata.publication}`);
   if (metadata.doi) parts.push(`# DOI\n${metadata.doi}`);
   parts.push("\nGenerate the wiki page following the required format exactly.");
   return parts.join("\n\n");
@@ -236,7 +238,11 @@ export interface PaperMetadata {
  * Finds the ## Section heading and inserts content before the next ## heading.
  * Creates the section at page end if it doesn't exist.
  */
-export function appendToSection(slug: string, section: string, content: string): void {
+export function appendToSection(
+  slug: string,
+  section: string,
+  content: string,
+): void {
   const cleanSlug = slug.replace(/^papers\//, "").replace(/\.md$/, "");
   const indexPath = `${getWikiBaseDir()}/papers/${cleanSlug}.md`;
   const pageContent = readFile(indexPath);
@@ -244,7 +250,9 @@ export function appendToSection(slug: string, section: string, content: string):
 
   const sectionHeading = `## ${section}`;
   const lines = pageContent.split("\n");
-  const headingIdx = lines.findIndex((l: string) => l.trim() === sectionHeading);
+  const headingIdx = lines.findIndex(
+    (l: string) => l.trim() === sectionHeading,
+  );
 
   let newContent: string;
   if (headingIdx >= 0) {
@@ -283,7 +291,11 @@ export function appendToSection(slug: string, section: string, content: string):
 }
 // ─── Concept/Entity Page Writer ───
 
-function buildConceptPage(concept: ConceptExtraction, paperSlug: string, paperTitle: string): string {
+function buildConceptPage(
+  concept: ConceptExtraction,
+  paperSlug: string,
+  paperTitle: string,
+): string {
   const now = new Date().toISOString().slice(0, 10);
 
   const frontmatter = [
@@ -339,7 +351,10 @@ export async function writeConceptPage(
     const pageContent = buildConceptPage(concept, paperSlug, paperTitle);
     writeFile(filePath, pageContent);
     updateConceptIndex(concept);
-    appendLog("concept", `created [[${dir}/${concept.englishSlug}|${concept.name}]] from [[papers/${paperSlug}]]`);
+    appendLog(
+      "concept",
+      `created [[${dir}/${concept.englishSlug}|${concept.name}]] from [[papers/${paperSlug}]]`,
+    );
   } else {
     // Existing page — merge via LLM
     try {
@@ -357,7 +372,9 @@ export async function writeConceptPage(
         "Merge the new paper into the existing page body as specified.",
       ].join("\n");
 
-      Zotero.debug(`[llmwiki] merging concept: ${concept.name} into existing page`);
+      Zotero.debug(
+        `[llmwiki] merging concept: ${concept.name} into existing page`,
+      );
       const mergedBody = await callLLM([
         { role: "system", content: buildMergePrompt() },
         { role: "user", content: userPrompt },
@@ -376,10 +393,15 @@ export async function writeConceptPage(
       const mergedContent = `---\n${newFrontmatter}\n---\n\n${mergedBody}`;
       writeFile(filePath, mergedContent);
       updateConceptIndex(concept);
-      appendLog("merge", `updated [[${dir}/${concept.englishSlug}|${concept.name}]] with paper [[papers/${paperSlug}]]`);
+      appendLog(
+        "merge",
+        `updated [[${dir}/${concept.englishSlug}|${concept.name}]] with paper [[papers/${paperSlug}]]`,
+      );
     } catch (e: any) {
       // Fallback: simple append to Related Papers without LLM
-      Zotero.debug(`[llmwiki] concept merge failed, using simple append: ${e.message}`);
+      Zotero.debug(
+        `[llmwiki] concept merge failed, using simple append: ${e.message}`,
+      );
       const now = new Date().toISOString().slice(0, 10);
       const updated = existingContent
         .replace(/^updated: .*$/m, `updated: ${now}`)
@@ -389,7 +411,10 @@ export async function writeConceptPage(
         );
       writeFile(filePath, updated);
       updateConceptIndex(concept);
-      appendLog("merge", `updated [[${dir}/${concept.englishSlug}|${concept.name}]] with paper [[papers/${paperSlug}]] (fallback)`);
+      appendLog(
+        "merge",
+        `updated [[${dir}/${concept.englishSlug}|${concept.name}]] with paper [[papers/${paperSlug}]] (fallback)`,
+      );
     }
   }
 }
@@ -398,7 +423,8 @@ function updateConceptIndex(concept: ConceptExtraction): void {
   const indexPath = `${getWikiBaseDir()}/index.md`;
   const now = new Date().toISOString().slice(0, 10);
   const dir = concept.type === "concept" ? "concepts" : "entities";
-  const sectionHeading = concept.type === "concept" ? "## Concepts" : "## Entities";
+  const sectionHeading =
+    concept.type === "concept" ? "## Concepts" : "## Entities";
   const linkLine = `- [[${dir}/${concept.englishSlug}|${concept.name}]]`;
 
   let content = readFile(indexPath);
@@ -411,13 +437,16 @@ function updateConceptIndex(concept: ConceptExtraction): void {
     // Insert after ## Papers section
     if (content.includes("## Papers")) {
       const papersIdx = content.indexOf("## Papers");
-      let insertIdx = content.indexOf("\n## ", papersIdx + 9);
+      const insertIdx = content.indexOf("\n## ", papersIdx + 9);
       if (insertIdx === -1) {
         // No next ## section — append at end
         content = content.trimEnd() + `\n\n${sectionHeading}\n${linkLine}\n`;
       } else {
         // Insert before the next ## section
-        content = content.slice(0, insertIdx) + `\n${sectionHeading}\n${linkLine}\n` + content.slice(insertIdx);
+        content =
+          content.slice(0, insertIdx) +
+          `\n${sectionHeading}\n${linkLine}\n` +
+          content.slice(insertIdx);
       }
     } else {
       content += `\n\n${sectionHeading}\n${linkLine}\n`;
@@ -428,7 +457,11 @@ function updateConceptIndex(concept: ConceptExtraction): void {
     if (!content.includes(linkLine)) {
       const sectionIdx = content.indexOf(sectionHeading);
       const afterHeading = content.indexOf("\n", sectionIdx) + 1;
-      content = content.slice(0, afterHeading) + linkLine + "\n" + content.slice(afterHeading);
+      content =
+        content.slice(0, afterHeading) +
+        linkLine +
+        "\n" +
+        content.slice(afterHeading);
       modified = true;
     }
   }

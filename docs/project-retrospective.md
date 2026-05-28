@@ -8,15 +8,16 @@
 
 灵感来自 Andrej Karpathy 的 LLM-Wiki 模式。插件围绕三层数据架构构建：
 
-| 层 | 位置 | 用途 |
-|---|------|------|
-| Wiki | `llm-wiki/wiki/papers/` | LLM 生成的结构化 Markdown，含 YAML frontmatter |
-| Raw | `llm-wiki/raw/papers/` | 原始元数据 + PDF 全文，JSON 格式 |
-| Concepts | `llm-wiki/wiki/concepts/` | 自动提取的跨论文概念，含反向链接 |
+| 层       | 位置                      | 用途                                           |
+| -------- | ------------------------- | ---------------------------------------------- |
+| Wiki     | `llm-wiki/wiki/papers/`   | LLM 生成的结构化 Markdown，含 YAML frontmatter |
+| Raw      | `llm-wiki/raw/papers/`    | 原始元数据 + PDF 全文，JSON 格式               |
+| Concepts | `llm-wiki/wiki/concepts/` | 自动提取的跨论文概念，含反向链接               |
 
 插件在 Zotero 右侧面板注册两个标签页——Wiki 浏览器用于浏览/编辑文件，Agent 用于 AI 问答并可调用工具访问整个知识库。
 
 ### 核心流程
+
 ```
 选中论文 → 右键 "LLM Wiki: 编译 Wiki"
   → 提取元数据 + PDF 全文
@@ -94,6 +95,7 @@ Zotero 主窗口
 ### 3.3 工具调用硬限制
 
 Agent 的 LLM 循环有代码层面的强制执行：
+
 - 最大 10 轮工具调用
 - 每次提问最多 5 次搜索——超过后强制返回"请停止搜索并回答"消息
 - Wiki 搜索无结果时自动 fallback 到 raw 搜索
@@ -103,6 +105,7 @@ Agent 的 LLM 循环有代码层面的强制执行：
 ### 3.4 PDF 提取策略
 
 三次尝试后放弃：
+
 1. 检查 PDF 是否已被索引：`Zotero.Fulltext.isFullyIndexed(attachment)`
 2. 触发索引：`Zotero.Fulltext.indexPDF(filePath, attachmentID)`
 3. 通过 XPCOM gzip 转换器读取并解压 `.zotero-ft-cache`
@@ -132,6 +135,7 @@ Agent 的 LLM 循环有代码层面的强制执行：
 **现象：** 所有基于 HTML 字符串的方法都无法渲染 Markdown：`innerHTML`、`createContextualFragment()`、`insertAdjacentHTML`、`createElementNS(XHTML)`——要么剥离了 HTML 标签，要么直接抛异常。
 
 **尝试过的修复（全部失败）：**
+
 1. `el.innerHTML = marked.parse(text)` — 标签被剥离
 2. `doc.createElementNS(XHTML_NS, "div")` + `innerHTML` — 标签被剥离
 3. `range.createContextualFragment(html)` — 曾经成功过一次，后来又不行了
@@ -140,6 +144,7 @@ Agent 的 LLM 循环有代码层面的强制执行：
 6. pdf.js（pdfjs-dist npm 包）— 缺少 canvas/Worker 导致插件崩溃
 
 **解决方案：** 手写了一个 Markdown 转 DOM 的渲染器（`renderMarkdownTo` + `renderInlineTo`）。逐行解析 Markdown 并直接创建 DOM 元素：
+
 - `## 标题` → `doc.createElement("h2")`
 - `**粗体**` → `doc.createElement("strong")`
 - `- 列表` → `doc.createElement("ul")` + `doc.createElement("li")`
@@ -176,6 +181,7 @@ Agent 的 LLM 循环有代码层面的强制执行：
 **根因：** Zotero 在条目面板刷新时（选中条目、切换标签页）会调用 `onRender`。我们的代码每次 `onRender` 都会从头重建整个 DOM。
 
 **尝试过的修复（失败）：**
+
 1. `if (body.firstChild) return;` — 无效，因为 Zotero 销毁了旧的 body 元素并创建了新的空 body
 
 **解决方案：** 通过 `state.tree?.parentNode`（或 `state.chatEl?.parentNode`）检查我们的元素是否仍在 DOM 中。如果已脱离，重建外壳并从内存恢复状态。如果仍连接，跳过。
@@ -189,6 +195,7 @@ Agent 的 LLM 循环有代码层面的强制执行：
 **现象：** `listDir()` 返回空数组，尽管磁盘上存在文件。
 
 **根因：** Firefox XPCOM 的 `nsIDirectoryEnumerator` 有多个问题：
+
 1. `enumerator.getNext()` 返回 `nsISupports`——必须 `QueryInterface(nsIFile)` 才能访问 `.path`
 2. 去掉 `QueryInterface`（作为 #1 的修复尝试）导致 `.path` 返回 `undefined`
 3. 需要调用 `enumerator.close()` 释放枚举器
@@ -202,6 +209,7 @@ Agent 的 LLM 循环有代码层面的强制执行：
 **现象：** 用 XPCOM 解压 `.zotero-ft-cache` 花了 4 轮迭代才搞定。
 
 **迭代记录：**
+
 1. `nsIStringInputStream.setData(raw, raw.length)` → "setData is not a function"（FF115 已废弃）
 2. `adoptData()` / `setByteStringData()` / `setUTF8String()` → 全都无效
 3. `nsIStreamConverter.convert(inputStream)` → "Not enough arguments"（需要 4 个参数）
@@ -219,6 +227,7 @@ Agent 的 LLM 循环有代码层面的强制执行：
 **根因：** LLM 看到了论文的 raw 片段，但用户询问的特定小节不在片段中（位于全文更深处）。LLM 不断重新构造查询，希望找到目标段落。
 
 **解决方案（分层）：**
+
 1. **System prompt**："停止并回答"规则，最多 3 次搜索 → LLM 无视
 2. **代码级限制**：`MAX_SEARCHES = 5`——5 次搜索后返回"请停止搜索并回答" → 有效
 3. **位置步进片段**：每次 `searchRaw` 返回全文不同 5KB 区段（10KB 步长），而不是每次都返回同一段 intro → LLM 获得多样化内容
@@ -260,6 +269,7 @@ Agent 的 LLM 循环有代码层面的强制执行：
 ## 5. Zotero 9 沙箱速查表
 
 ### 可用
+
 - `XMLHttpRequest` — 没有 `fetch`
 - `Components.classes` / `Components.interfaces` — XPCOM
 - `doc.createElement("div")` — XUL 元素
@@ -273,6 +283,7 @@ Agent 的 LLM 循环有代码层面的强制执行：
 - `Zotero.ItemPaneManager.registerSection()`
 
 ### 不可用
+
 - `fetch`、`AbortController` — 使用 XHR
 - panel 上下文中的 `document` 全局变量 — 使用 `element.ownerDocument`
 - XUL 注入内容上的 `querySelector`、`getElementById` — 使用保存的引用
@@ -282,6 +293,7 @@ Agent 的 LLM 循环有代码层面的强制执行：
 - `window` 全局变量 — 可能不存在
 
 ### XHR 模式
+
 ```typescript
 return new Promise((resolve, reject) => {
   const xhr = new XMLHttpRequest();
@@ -289,7 +301,9 @@ return new Promise((resolve, reject) => {
   xhr.setRequestHeader("Content-Type", "application/json");
   xhr.setRequestHeader("Authorization", `Bearer ${apiKey}`);
   xhr.timeout = timeoutMs;
-  xhr.onload = () => { /* 解析响应 */ };
+  xhr.onload = () => {
+    /* 解析响应 */
+  };
   xhr.onerror = () => reject(new Error("Network error"));
   xhr.ontimeout = () => reject(new Error("Timeout"));
   xhr.send(body);
@@ -297,6 +311,7 @@ return new Promise((resolve, reject) => {
 ```
 
 ### XPCOM 文件 I/O
+
 ```typescript
 // 文本（UTF-8）：nsIConverterOutputStream 写入，nsIConverterInputStream 读取
 // 二进制：nsIBinaryOutputStream 写入，nsIBinaryInputStream 读取

@@ -93,7 +93,9 @@ async function onStartup() {
   });
 
   await Promise.all(
-    Zotero.getMainWindows().map((win: _ZoteroTypes.MainWindow) => onMainWindowLoad(win)),
+    Zotero.getMainWindows().map((win: _ZoteroTypes.MainWindow) =>
+      onMainWindowLoad(win),
+    ),
   );
 
   addon.data.initialized = true;
@@ -110,7 +112,9 @@ async function onMainWindowLoad(win: _ZoteroTypes.MainWindow): Promise<void> {
     if (win.document.readyState === "complete") {
       resolve();
     } else {
-      win.document.addEventListener("DOMContentLoaded", () => resolve(), { once: true });
+      win.document.addEventListener("DOMContentLoaded", () => resolve(), {
+        once: true,
+      });
     }
   });
 

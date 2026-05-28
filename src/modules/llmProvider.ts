@@ -24,7 +24,9 @@ export async function callLLM(messages: ChatMessage[]): Promise<string> {
   const model = getPref("modelName") as string;
 
   if (!endpoint || !apiKey) {
-    throw new Error("API endpoint or key not configured. Open Preferences → LLM Wiki.");
+    throw new Error(
+      "API endpoint or key not configured. Open Preferences → LLM Wiki.",
+    );
   }
 
   const url = endpoint.endsWith("/chat/completions")
@@ -55,18 +57,25 @@ export async function callLLM(messages: ChatMessage[]): Promise<string> {
         return;
       }
       if (xhr.status < 200 || xhr.status >= 300) {
-        reject(new Error(`API error (${xhr.status}): ${xhr.responseText?.slice(0, 200) || ""}`));
+        reject(
+          new Error(
+            `API error (${xhr.status}): ${xhr.responseText?.slice(0, 200) || ""}`,
+          ),
+        );
         return;
       }
       try {
-        const data = JSON.parse(xhr.responseText || "{}") as unknown as ChatCompletionResponse;
+        const data = JSON.parse(
+          xhr.responseText || "{}",
+        ) as unknown as ChatCompletionResponse;
         resolve(data.choices[0]?.message?.content || "");
       } catch (e: any) {
         reject(new Error(`Failed to parse response: ${e.message}`));
       }
     };
 
-    xhr.onerror = () => reject(new Error("Network error: Unable to reach API."));
+    xhr.onerror = () =>
+      reject(new Error("Network error: Unable to reach API."));
     xhr.ontimeout = () => reject(new Error("timeout"));
     xhr.send(body);
   });
@@ -75,8 +84,13 @@ export async function callLLM(messages: ChatMessage[]): Promise<string> {
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => {
     // @ts-expect-error - Mozilla XPCOM Components is only available in Zotero/Firefox runtime
-    const timer = Components.classes["@mozilla.org/timer;1"]
-      .createInstance(Components.interfaces.nsITimer) as any;
-    timer.initWithCallback(resolve, ms, Components.interfaces.nsITimer.TYPE_ONE_SHOT);
+    const timer = Components.classes["@mozilla.org/timer;1"].createInstance(
+      Components.interfaces.nsITimer,
+    ) as any;
+    timer.initWithCallback(
+      resolve,
+      ms,
+      Components.interfaces.nsITimer.TYPE_ONE_SHOT,
+    );
   });
 }

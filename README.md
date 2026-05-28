@@ -39,13 +39,13 @@
 
 ### 配置项
 
-| 配置项 | 默认值 | 说明 |
-|--------|--------|------|
-| API Endpoint | `https://api.openai.com/v1` | OpenAI 兼容 API 地址 |
-| API Key | — | 你的 API 密钥 |
-| Model Name | `gpt-4o` | 模型名称 |
-| Request Timeout | `120` | 超时秒数 |
-| Auto-extract concepts | ✔ | 编译时自动提取概念和实体 |
+| 配置项                | 默认值                      | 说明                     |
+| --------------------- | --------------------------- | ------------------------ |
+| API Endpoint          | `https://api.openai.com/v1` | OpenAI 兼容 API 地址     |
+| API Key               | —                           | 你的 API 密钥            |
+| Model Name            | `gpt-4o`                    | 模型名称                 |
+| Request Timeout       | `120`                       | 超时秒数                 |
+| Auto-extract concepts | ✔                           | 编译时自动提取概念和实体 |
 
 ### 使用
 
@@ -55,11 +55,11 @@
 
 **Agent 对话：** 右侧面板 → "Agent" tab → 用自然语言提问
 
-| 命令 | 说明 |
-|------|------|
-| `/clear` | 重置对话 |
+| 命令       | 说明                     |
+| ---------- | ------------------------ |
+| `/clear`   | 重置对话                 |
 | `/compact` | 压缩上下文，保留最近几轮 |
-| `/save` | 导出对话为 Markdown |
+| `/save`    | 导出对话为 Markdown      |
 
 ### 开发
 
@@ -127,13 +127,13 @@ Select a paper in Zotero, right-click → "LLM Wiki: Ingest", and the plugin cal
 
 ### Preferences
 
-| Setting | Default | Description |
-|---------|---------|-------------|
-| API Endpoint | `https://api.openai.com/v1` | OpenAI-compatible API URL |
-| API Key | — | Your API key |
-| Model Name | `gpt-4o` | Model to use |
-| Request Timeout | `120` | Timeout in seconds |
-| Auto-extract concepts | ✔ | Auto-extract concepts during ingest |
+| Setting               | Default                     | Description                         |
+| --------------------- | --------------------------- | ----------------------------------- |
+| API Endpoint          | `https://api.openai.com/v1` | OpenAI-compatible API URL           |
+| API Key               | —                           | Your API key                        |
+| Model Name            | `gpt-4o`                    | Model to use                        |
+| Request Timeout       | `120`                       | Timeout in seconds                  |
+| Auto-extract concepts | ✔                           | Auto-extract concepts during ingest |
 
 ### Usage
 
@@ -143,11 +143,11 @@ Select a paper in Zotero, right-click → "LLM Wiki: Ingest", and the plugin cal
 
 **Agent Chat:** Right panel → "Agent" tab → ask questions in natural language
 
-| Command | Description |
-|---------|-------------|
-| `/clear` | Reset conversation |
-| `/compact` | Compress context window |
-| `/save` | Export conversation as Markdown |
+| Command    | Description                     |
+| ---------- | ------------------------------- |
+| `/clear`   | Reset conversation              |
+| `/compact` | Compress context window         |
+| `/save`    | Export conversation as Markdown |
 
 ### Development
 

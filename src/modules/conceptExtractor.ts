@@ -37,7 +37,11 @@ Respond with ONLY a JSON array (no markdown fences, no extra text). Each entry:
 - englishSlug: lowercase, hyphen-separated, no special characters, max 50 chars`;
 }
 
-function buildExtractionUserPrompt(title: string, wikiContent: string, abstract: string): string {
+function buildExtractionUserPrompt(
+  title: string,
+  wikiContent: string,
+  abstract: string,
+): string {
   return [
     `# Paper Title\n${title}`,
     `# Abstract\n${abstract || "(not available)"}`,
@@ -50,7 +54,7 @@ function buildExtractionUserPrompt(title: string, wikiContent: string, abstract:
 
 function parseConceptResponse(response: string): ConceptExtraction[] {
   // Try direct parse first
-  let cleaned = response.trim();
+  const cleaned = response.trim();
   try {
     const result = JSON.parse(cleaned);
     if (Array.isArray(result)) return validateExtractions(result);
@@ -80,7 +84,9 @@ function parseConceptResponse(response: string): ConceptExtraction[] {
     }
   }
 
-  Zotero.debug(`[llmwiki] conceptExtractor: failed to parse JSON from: ${cleaned.slice(0, 200)}`);
+  Zotero.debug(
+    `[llmwiki] conceptExtractor: failed to parse JSON from: ${cleaned.slice(0, 200)}`,
+  );
   return [];
 }
 
@@ -90,7 +96,8 @@ function validateExtractions(items: any[]): ConceptExtraction[] {
   let entityCount = 0;
 
   for (const item of items) {
-    if (!item.name || !item.englishSlug || !item.type || !item.definition) continue;
+    if (!item.name || !item.englishSlug || !item.type || !item.definition)
+      continue;
     if (item.type !== "concept" && item.type !== "entity") continue;
     if (item.type === "concept" && conceptCount >= 3) continue;
     if (item.type === "entity" && entityCount >= 3) continue;
@@ -132,7 +139,9 @@ export async function extractConcepts(
     { role: "system", content: systemPrompt },
     { role: "user", content: userPrompt },
   ]);
-  Zotero.debug(`[llmwiki] concept extraction response: ${response.slice(0, 300)}`);
+  Zotero.debug(
+    `[llmwiki] concept extraction response: ${response.slice(0, 300)}`,
+  );
 
   const concepts = parseConceptResponse(response);
   Zotero.debug(`[llmwiki] extracted ${concepts.length} concepts/entities`);

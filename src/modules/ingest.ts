@@ -18,9 +18,14 @@ import { titleToSlug } from "../utils/sanitize";
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => {
     // @ts-expect-error - Mozilla XPCOM Components is only available in Zotero/Firefox runtime
-    const timer = Components.classes["@mozilla.org/timer;1"]
-      .createInstance(Components.interfaces.nsITimer) as any;
-    timer.initWithCallback(resolve, ms, Components.interfaces.nsITimer.TYPE_ONE_SHOT);
+    const timer = Components.classes["@mozilla.org/timer;1"].createInstance(
+      Components.interfaces.nsITimer,
+    ) as any;
+    timer.initWithCallback(
+      resolve,
+      ms,
+      Components.interfaces.nsITimer.TYPE_ONE_SHOT,
+    );
   });
 }
 
@@ -51,7 +56,9 @@ export async function runIngest(item: Zotero.Item): Promise<void> {
 
   const progress = new ztoolkit.ProgressWindow(addon.data.config.addonName)
     .createLine({
-      text: getString("ingest-start", { args: { title: metadata.title.slice(0, 80) } }),
+      text: getString("ingest-start", {
+        args: { title: metadata.title.slice(0, 80) },
+      }),
       type: "default",
       progress: 30,
     })
@@ -80,28 +87,42 @@ export async function runIngest(item: Zotero.Item): Promise<void> {
     if (getPref("autoExtractConcepts") !== false) {
       try {
         progress.changeLine({
-          text: getString("ingest-extracting-concepts", { args: { title: metadata.title.slice(0, 60) } }),
+          text: getString("ingest-extracting-concepts", {
+            args: { title: metadata.title.slice(0, 60) },
+          }),
           progress: 85,
         });
-        const concepts = await extractConcepts(metadata.title, wikiContent, metadata.abstract || "");
-        Zotero.debug(`[llmwiki] extracted ${concepts.length} concepts/entities`);
+        const concepts = await extractConcepts(
+          metadata.title,
+          wikiContent,
+          metadata.abstract || "",
+        );
+        Zotero.debug(
+          `[llmwiki] extracted ${concepts.length} concepts/entities`,
+        );
 
         for (const c of concepts) {
           progress.changeLine({
-            text: getString("ingest-writing-concept", { args: { type: c.type, name: c.name.slice(0, 60) } }),
+            text: getString("ingest-writing-concept", {
+              args: { type: c.type, name: c.name.slice(0, 60) },
+            }),
             progress: 90,
           });
           await writeConceptPage(c, slug, metadata.title);
           await appendSeeAlsoToPaper(slug, c.englishSlug, c.name, c.type);
         }
       } catch (e: any) {
-        Zotero.debug(`[llmwiki] concept extraction failed (non-blocking): ${e.message}`);
+        Zotero.debug(
+          `[llmwiki] concept extraction failed (non-blocking): ${e.message}`,
+        );
       }
     }
 
     progress.startCloseTimer(0);
     showNotification(
-      getString("ingest-success", { args: { title: metadata.title.slice(0, 80) } }),
+      getString("ingest-success", {
+        args: { title: metadata.title.slice(0, 80) },
+      }),
       "success",
     );
   } catch (e: any) {
@@ -114,7 +135,9 @@ export async function runIngest(item: Zotero.Item): Promise<void> {
 
     progress.startCloseTimer(0);
     showNotification(
-      getString(errorKey, { args: { message: e.message?.slice(0, 100) || "" } }),
+      getString(errorKey, {
+        args: { message: e.message?.slice(0, 100) || "" },
+      }),
       "error",
     );
   }
@@ -139,7 +162,10 @@ function formatCreators(item: Zotero.Item): string {
     .join(", ");
 }
 
-function showNotification(message: string, type: "success" | "warning" | "error" | "default" = "default") {
+function showNotification(
+  message: string,
+  type: "success" | "warning" | "error" | "default" = "default",
+) {
   new ztoolkit.ProgressWindow(addon.data.config.addonName)
     .createLine({
       text: message,

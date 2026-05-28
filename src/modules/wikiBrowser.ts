@@ -55,7 +55,9 @@ function renderMarkdown(raw: string): string {
 
     metaHtml = [
       '<div class="llmwiki-metadata">',
-      title ? `<div class="llmwiki-metadata-title">${escapeHTML(title)}</div>` : "",
+      title
+        ? `<div class="llmwiki-metadata-title">${escapeHTML(title)}</div>`
+        : "",
       '<div class="llmwiki-metadata-row">',
       authors ? `<span>${escapeHTML(authors)}</span>` : "",
       year ? `<span>${escapeHTML(year)}</span>` : "",
@@ -148,7 +150,13 @@ const PANEL_CSS = `
 
 // ─── Public Entry Point ───
 
-export function renderWikiBrowser({ body, doc }: { body: HTMLElement; doc: Document }): void {
+export function renderWikiBrowser({
+  body,
+  doc,
+}: {
+  body: HTMLElement;
+  doc: Document;
+}): void {
   if (!body) return;
   state.doc = doc;
 
@@ -176,7 +184,7 @@ export function renderWikiBrowser({ body, doc }: { body: HTMLElement; doc: Docum
     treeToolbar.className = "llmwiki-tree-toolbar";
     const refreshBtn = doc.createElement("button");
     refreshBtn.className = "llmwiki-btn llmwiki-refresh-btn";
-    refreshBtn.textContent = "↻";  // ↻ refresh symbol
+    refreshBtn.textContent = "↻"; // ↻ refresh symbol
     refreshBtn.title = "Refresh file tree";
     refreshBtn.addEventListener("click", (ev) => {
       ev.stopPropagation();
@@ -284,7 +292,10 @@ function handleSplitterDrag(e: MouseEvent): void {
   const doc = tree.ownerDocument!;
 
   function onMove(ev: MouseEvent): void {
-    const newWidth = Math.max(80, Math.min(400, startWidth + (ev.clientX - startX)));
+    const newWidth = Math.max(
+      80,
+      Math.min(400, startWidth + (ev.clientX - startX)),
+    );
     tree!.style.width = `${newWidth}px`;
   }
 
@@ -329,7 +340,8 @@ function showPreview(page: ParsedPage): void {
   const renderedHTML = renderMarkdown(raw);
 
   // Clear content
-  while (state.content.firstChild) state.content.removeChild(state.content.firstChild);
+  while (state.content.firstChild)
+    state.content.removeChild(state.content.firstChild);
 
   // Toolbar
   const toolbar = doc.createElement("div");
@@ -359,7 +371,8 @@ function showEditor(page: ParsedPage): void {
   const raw = readFile(fullPath) || "";
 
   // Clear content
-  while (state.content.firstChild) state.content.removeChild(state.content.firstChild);
+  while (state.content.firstChild)
+    state.content.removeChild(state.content.firstChild);
 
   // Toolbar
   const toolbar = doc.createElement("div");
@@ -441,7 +454,11 @@ function handleContentClick(e: Event): void {
     const targetPath = target.dataset.target;
     if (targetPath) {
       const path = targetPath.endsWith(".md") ? targetPath : `${targetPath}.md`;
-      state.currentNode = { name: path.split("/").pop() || "", path, type: "file" };
+      state.currentNode = {
+        name: path.split("/").pop() || "",
+        path,
+        type: "file",
+      };
       state.mode = "preview";
       loadPage(path);
       buildFileTree();
@@ -453,7 +470,8 @@ function handleContentClick(e: Event): void {
 
 function showEmpty(message: string): void {
   if (!state.content || !state.doc) return;
-  while (state.content.firstChild) state.content.removeChild(state.content.firstChild);
+  while (state.content.firstChild)
+    state.content.removeChild(state.content.firstChild);
   const el = state.doc.createElement("div");
   el.className = "llmwiki-empty";
   el.textContent = message;

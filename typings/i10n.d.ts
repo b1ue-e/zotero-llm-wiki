@@ -3,6 +3,12 @@
 /* eslint-disable */
 // @ts-nocheck
 export type FluentMessageId =
+  | 'deep-research-complete'
+  | 'deep-research-detected'
+  | 'deep-research-meta'
+  | 'deep-research-start'
+  | 'deep-research-synthesizing'
+  | 'deep-research-too-many-rounds'
   | 'ingest-error-auth'
   | 'ingest-error-network'
   | 'ingest-error-no-metadata'
