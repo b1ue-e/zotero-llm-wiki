@@ -704,7 +704,9 @@ You are in autonomous multi-step research mode. Your goal is comprehensive inves
 async function executeDeepResearch(query: string): Promise<void> {
   Zotero.debug(`[llmwiki] deep_research: starting for query "${query.slice(0, 80)}"`);
   // Pre-research: check for existing sessions on this topic
+  Zotero.debug(`[llmwiki] deep_research: searching past sessions for "${query.slice(0, 60)}"`);
   const existingSessions = searchSessions(query);
+  Zotero.debug(`[llmwiki] deep_research: found ${existingSessions.length} existing sessions`);
   if (existingSessions.length > 0) {
     const bestMatch = existingSessions[0];
     Zotero.debug(`[llmwiki] deep_research: found existing session "${bestMatch.title}"`);
@@ -720,7 +722,9 @@ async function executeDeepResearch(query: string): Promise<void> {
   const thinkingEl = addThinking();
   const maxRounds = MAX_TOOL_ROUNDS_DEEP;
   const maxSearches = MAX_SEARCHES_DEEP;
+  Zotero.debug(`[llmwiki] deep_research: calling LLM (${state.messages.length} messages)`);
   let response = await callLLM(state.messages);
+  Zotero.debug(`[llmwiki] deep_research: initial response — content=${!!response.content}, tool_calls=${response.tool_calls?.length || 0}`);
   let round = 0;
   let searchCount = 0;
   _rawFlag = false;
@@ -812,6 +816,7 @@ async function executeDeepResearch(query: string): Promise<void> {
       const tagWords = query.toLowerCase().split(/\s+/).filter(w => w.length > 3);
 
       // Save session
+      Zotero.debug(`[llmwiki] deep_research: saving session (existingSlug=${_researchTrace.existingSessionSlug || "new"})`);
       const slug = saveSession({
         title: sessionTitle,
         query,
@@ -823,6 +828,7 @@ async function executeDeepResearch(query: string): Promise<void> {
         tags: tagWords.slice(0, 5),
         existingSlug: _researchTrace.existingSessionSlug,
       });
+      Zotero.debug(`[llmwiki] deep_research: session saved as ${slug}`);
 
       const dataDir = getWikiBaseDir().replace(/\/wiki$/, "");
       addAssistantMessage(`Research session saved. Run \`cat ${dataDir}/research-sessions/${slug}.md\` to view the full report and meta-analysis.`);
@@ -834,6 +840,7 @@ async function executeDeepResearch(query: string): Promise<void> {
 
   } catch (e: any) {
     if (thinkingEl) thinkingEl.remove();
+    Zotero.debug(`[llmwiki] deep_research error: ${e.message || String(e)}`);
     addAssistantMessage(`Deep research error: ${e.message || String(e)}`);
   }
 
