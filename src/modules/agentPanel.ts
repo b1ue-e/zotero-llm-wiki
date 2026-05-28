@@ -644,7 +644,7 @@ function buildSystemPrompt(): string {
 - read_session(slug): Read a full past research session.
 
 ## Deep Research Detection
-When the user's question clearly requires multi-paper comparison, literature review, synthesis, or survey (keywords: compare, contrast, review, synthesize, survey, "what methods", "how does X relate to Y", "across papers") — respond with: "This seems like a research question. Would you like me to start a deep research? Type /deep_research to begin." Do NOT start deep research automatically — always ask first.
+When the user's question clearly requires multi-paper comparison, literature review, synthesis, or survey (keywords: compare, contrast, review, synthesize, survey, "what methods", "how does X relate to Y", "across papers") — respond with: "This seems like a research question. Would you like me to start a deep research? Type /deep_research or /deepresearch to begin." Do NOT start deep research automatically — always ask first.
 
 ## Critical Rules (MUST follow)
 - **Stop and answer**: After calling read_page, you have the paper's complete structured summary. Answer the user's question IMMEDIATELY — do NOT call more tools.
@@ -702,6 +702,7 @@ You are in autonomous multi-step research mode. Your goal is comprehensive inves
 }
 
 async function executeDeepResearch(query: string): Promise<void> {
+  Zotero.debug(`[llmwiki] deep_research: starting for query "${query.slice(0, 80)}"`);
   const thinkingEl = addThinking();
   const maxRounds = MAX_TOOL_ROUNDS_DEEP;
   const maxSearches = MAX_SEARCHES_DEEP;
@@ -714,6 +715,7 @@ async function executeDeepResearch(query: string): Promise<void> {
     // Tool calling loop with expanded limits
     while (response.tool_calls && response.tool_calls.length > 0 && round < maxRounds) {
       round++;
+      Zotero.debug(`[llmwiki] deep_research: round ${round}, ${response.tool_calls.length} tool calls, ${searchCount} searches`);
       state.messages.push({
         role: "assistant",
         content: response.content || "",
@@ -767,6 +769,7 @@ async function executeDeepResearch(query: string): Promise<void> {
     if (thinkingEl) thinkingEl.remove();
 
     const report = response.content || "";
+    Zotero.debug(`[llmwiki] deep_research: loop ended, round=${round}, reportLen=${report.length}`);
     if (!report && round >= maxRounds) {
       addAssistantMessage("Deep research reached the round limit without producing a report. Try a more specific question.");
       _deepResearchMode = false;
@@ -784,6 +787,7 @@ async function executeDeepResearch(query: string): Promise<void> {
     const thinkingEl2 = addThinking();
     try {
       const metaAnalysis = await generateMetaAnalysis(report, _researchTrace);
+      Zotero.debug(`[llmwiki] deep_research: meta-analysis generated, ${metaAnalysis.length} chars`);
       if (thinkingEl2) thinkingEl2.remove();
 
       // Parse report for title, papers, tags
@@ -857,8 +861,19 @@ async function handleSend(): Promise<void> {
     return;
   }
 
-  if (text.startsWith("/deep_research")) {
-    const query = text.slice("/deep_research".length).trim();
+  if (text.startsWith("/deep_research") || text.startsWith("/deepresearch") || text === "/dr") {
+    let query: string;
+    if (text === "/dr") {
+      addAssistantMessage("Usage: /deep_research <research question>");
+      state.busy = false;
+      updateSendButton();
+      return;
+    }
+    if (text.startsWith("/deep_research")) {
+      query = text.slice("/deep_research".length).trim();
+    } else {
+      query = text.slice("/deepresearch".length).trim();
+    }
     if (!query) {
       addAssistantMessage("Usage: /deep_research <research question>");
       state.busy = false;
