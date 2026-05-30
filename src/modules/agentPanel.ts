@@ -9,7 +9,7 @@ import {
 } from "./wikiReader";
 import { runIngest } from "./ingest";
 import { getPref } from "../utils/prefs";
-import { getWikiBaseDir, writeFile, makeDir } from "../utils/xpcom";
+import { getWikiBaseDir, writeFile, makeDir, listDir } from "../utils/xpcom";
 import { searchRaw } from "./rawStorage";
 import { appendToSection } from "./wikiStorage";
 import { saveSession, searchSessions, loadSession, listSessions, generateMetaAnalysis, type SessionSaveData, type ResearchTrace } from "./deepResearch";
@@ -627,6 +627,48 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "list_concepts",
+      description: "List all concepts and entities in the knowledge base, optionally filtered by type. Shows how many papers reference each one.",
+      parameters: {
+        type: "object",
+        properties: {
+          type: { type: "string", description: "Filter by type: 'concept', 'entity', or 'all' (default)" },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_related_papers",
+      description: "Get all papers that reference a given concept or entity. Use this to find papers related to a specific method, framework, or named entity.",
+      parameters: {
+        type: "object",
+        properties: {
+          slug: { type: "string", description: "Concept/entity slug (e.g., 'concepts/self-attention' or 'entities/imagenet')" },
+        },
+        required: ["slug"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "find_connections",
+      description: "Find connections between papers, concepts, and entities in the knowledge graph. Without a target, returns all directly connected nodes. With a target, finds the shortest path between them.",
+      parameters: {
+        type: "object",
+        properties: {
+          source: { type: "string", description: "Source node slug (e.g., 'papers/slug', 'concepts/slug', 'entities/slug')" },
+          target: { type: "string", description: "Optional target node slug to find a path to" },
+        },
+        required: ["source"],
+      },
+    },
+  },
 ];
 
 // ─── System Prompt ───
@@ -731,6 +773,159 @@ Before calling any tool, ask yourself:
   }
 
   return base;
+}
+
+// ─── Knowledge Graph Traversal ───
+
+interface GraphNode {
+  name: string;
+  slug: string;
+  type: "concept" | "entity";
+  paperCount: number;
+}
+
+function listGraphNodes(filterType: string): GraphNode[] {
+  const baseDir = getWikiBaseDir();
+  const results: GraphNode[] = [];
+  const dirs = filterType === "all"
+    ? ["concepts", "entities"]
+    : [filterType === "entity" ? "entities" : "concepts"];
+
+  for (const dir of dirs) {
+    const catDir = `${baseDir}/${dir}`;
+    const files = listDir(catDir);
+    for (const filePath of files) {
+      if (!filePath.endsWith(".md")) continue;
+      const page = readPage(`${dir}/${filePath.split("/").pop()!}`);
+      if (!page) continue;
+      const name = page.frontmatter["title"] || filePath;
+      const slug = `${dir}/${filePath.split("/").pop()!.replace(/\.md$/, "")}`;
+      let paperCount = 0;
+      const papersDir = `${baseDir}/papers`;
+      const paperFiles = listDir(papersDir);
+      for (const pf of paperFiles) {
+        if (!pf.endsWith(".md")) continue;
+        const paperPage = readPage(`papers/${pf.split("/").pop()!}`);
+        if (!paperPage) continue;
+        if (paperPage.body.includes(`[[${slug}`)) paperCount++;
+      }
+      results.push({ name, slug, type: dir === "concepts" ? "concept" : "entity", paperCount });
+    }
+  }
+  results.sort((a, b) => b.paperCount - a.paperCount);
+  return results;
+}
+
+function getRelatedPapers(slug: string): { title: string; slug: string; relevance: string }[] {
+  const baseDir = getWikiBaseDir();
+  const results: { title: string; slug: string; relevance: string }[] = [];
+  const papersDir = `${baseDir}/papers`;
+  const paperFiles = listDir(papersDir);
+
+  for (const pf of paperFiles) {
+    if (!pf.endsWith(".md")) continue;
+    const relPath = `papers/${pf.split("/").pop()!}`;
+    const page = readPage(relPath);
+    if (!page) continue;
+    if (page.body.includes(`[[${slug}`)) {
+      const linkRegex = new RegExp(`\\[\\[${slug}\\|?[^\\]]*\\]\\][ \\t]*(?:—|–|-)?[ \\t]*(.*)`, "i");
+      const match = page.body.match(linkRegex);
+      const relevance = match?.[1]?.trim() || "Related work";
+      results.push({
+        title: page.frontmatter["title"] || pf,
+        slug: relPath.replace(/\.md$/, ""),
+        relevance: relevance.slice(0, 120),
+      });
+    }
+  }
+  return results;
+}
+
+function findConnections(source: string, target?: string): string {
+  const baseDir = getWikiBaseDir();
+  const adj: Map<string, Set<string>> = new Map();
+  const labels: Map<string, string> = new Map();
+
+  const scanDir = (dir: string) => {
+    const files = listDir(`${baseDir}/${dir}`);
+    for (const f of files) {
+      if (!f.endsWith(".md")) continue;
+      const relPath = `${dir}/${f.split("/").pop()!.replace(/\.md$/, "")}`;
+      const page = readPage(relPath);
+      if (!page) continue;
+      labels.set(relPath, page.frontmatter["title"] || relPath);
+      if (!adj.has(relPath)) adj.set(relPath, new Set());
+      const links = page.body.match(/\[\[([^\]]+)\]\]/g) || [];
+      for (const link of links) {
+        const inner = link.slice(2, -2);
+        const neighbor = inner.split("|")[0].trim();
+        adj.get(relPath)!.add(neighbor);
+        if (!adj.has(neighbor)) adj.set(neighbor, new Set());
+        adj.get(neighbor)!.add(relPath);
+        if (!labels.has(neighbor)) {
+          labels.set(neighbor, inner.split("|")[1]?.trim() || neighbor);
+        }
+      }
+    }
+  };
+
+  scanDir("papers");
+  scanDir("concepts");
+  scanDir("entities");
+
+  let normalizedSource = source;
+  if (!source.includes("/")) {
+    for (const prefix of ["concepts", "entities", "papers"]) {
+      if (adj.has(`${prefix}/${source}`)) {
+        normalizedSource = `${prefix}/${source}`;
+        break;
+      }
+    }
+  }
+
+  if (!target) {
+    const neighbors = adj.get(normalizedSource);
+    if (!neighbors || neighbors.size === 0) {
+      return `No direct connections found for "${source}". Ingest more papers to build the knowledge graph.`;
+    }
+    const neighborList = [...neighbors].map(n => {
+      const label = labels.get(n) || n;
+      return `- ${label} (${n})`;
+    });
+    return `Direct connections for "${labels.get(normalizedSource) || normalizedSource}":\n${neighborList.join("\n")}`;
+  }
+
+  let normalizedTarget = target;
+  if (!target.includes("/")) {
+    for (const prefix of ["concepts", "entities", "papers"]) {
+      if (adj.has(`${prefix}/${target}`)) {
+        normalizedTarget = `${prefix}/${target}`;
+        break;
+      }
+    }
+  }
+
+  const visited = new Set<string>();
+  const queue: { node: string; path: string[] }[] = [{ node: normalizedSource, path: [normalizedSource] }];
+  visited.add(normalizedSource);
+  const maxHops = 5;
+
+  while (queue.length > 0) {
+    const { node, path } = queue.shift()!;
+    if (node === normalizedTarget || node === target) {
+      const pathLabels = path.map((n, i) => `${i}. ${labels.get(n) || n} (${n})`);
+      return `Connection found (${path.length - 1} hops):\n${pathLabels.join("\n")}`;
+    }
+    if (path.length > maxHops) continue;
+    for (const neighbor of adj.get(node) || []) {
+      if (!visited.has(neighbor)) {
+        visited.add(neighbor);
+        queue.push({ node: neighbor, path: [...path, neighbor] });
+      }
+    }
+  }
+
+  return `No connection found between "${source}" and "${target || "?"}" within ${maxHops} hops.`;
 }
 
 async function executeDeepResearch(query: string): Promise<void> {
@@ -1392,6 +1587,34 @@ async function executeToolCall(tc: ToolCall): Promise<string> {
         } else {
           result = `# ${session.frontmatter["title"] || args.slug}\n\n${session.report}\n\n# Meta-Analysis\n\n${session.meta_analysis}`;
         }
+        break;
+      }
+      case "list_concepts": {
+        const filterType = (args.type || "all") as string;
+        const nodes = listGraphNodes(filterType);
+        if (nodes.length === 0) {
+          result = "No concepts or entities found in the knowledge base yet. Ingest some papers first to auto-extract them.";
+        } else {
+          result = nodes.map(n =>
+            `- **${n.name}** (${n.slug}) [${n.type}] — ${n.paperCount} papers`
+          ).join("\n");
+        }
+        break;
+      }
+      case "get_related_papers": {
+        const cSlug = (args.slug || "").replace(/\.md$/, "");
+        const papers = getRelatedPapers(cSlug);
+        if (papers.length === 0) {
+          result = `No papers reference "${cSlug}". Try ingesting more papers or checking for related concepts.`;
+        } else {
+          result = `Papers referencing *${cSlug}*:\n${papers.map((p: { title: string; slug: string; relevance: string }) => `- **${p.title}** (${p.slug})\n  ${p.relevance}`).join("\n")}`;
+        }
+        break;
+      }
+      case "find_connections": {
+        const source = (args.source || "").replace(/\.md$/, "");
+        const target = args.target ? String(args.target).replace(/\.md$/, "") : undefined;
+        result = findConnections(source, target);
         break;
       }
       default:
