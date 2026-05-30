@@ -7,14 +7,14 @@ import {
   type FileNode,
   type ParsedPage,
 } from "./wikiReader";
-import { getWikiBaseDir, readFile } from "../utils/xpcom";
+import { getWikiBaseDir, readFile, listDir } from "../utils/xpcom";
 
 // ─── State ───
 
 interface BrowserState {
   currentNode: FileNode | null;
   currentPage: ParsedPage | null;
-  mode: "preview" | "edit";
+  mode: "preview" | "edit" | "graph";
   tree: HTMLElement | null;
   content: HTMLElement | null;
   root: HTMLElement | null;
@@ -146,6 +146,28 @@ const PANEL_CSS = `
     padding: 8px 20px; border-radius: 6px; font-size: 13px; white-space: nowrap;
     opacity: 0; transition: opacity 0.2s; pointer-events: none; z-index: 9999; }
   .llmwiki-toast.show { opacity: 1; }
+  .llmwiki-graph-back { margin-bottom: 12px; }
+  .llmwiki-graph-layer { margin-bottom: 16px; }
+  .llmwiki-graph-layer-title { font-size: 12px; font-weight: 600;
+    text-transform: uppercase; color: var(--text-secondary, #666);
+    margin-bottom: 8px; padding-bottom: 4px;
+    border-bottom: 1px solid var(--fill-quaternary, #e0e0e0); }
+  .llmwiki-graph-layer-cards { display: flex; flex-wrap: wrap; gap: 8px; }
+  .llmwiki-graph-card { background: var(--fill-secondary, #f5f5f5);
+    border: 1px solid var(--fill-quaternary, #e0e0e0);
+    border-radius: 8px; padding: 10px 14px; cursor: pointer;
+    min-width: 120px; max-width: 220px; }
+  .llmwiki-graph-card:hover { border-color: var(--accent-selected, #0060df);
+    background: var(--fill-tertiary, #f0f0f0); }
+  .llmwiki-graph-card.current { border-color: var(--accent-selected, #0060df);
+    border-width: 2px; background: var(--accent-tertiary, #e0e0ff); }
+  .llmwiki-graph-card-name { font-weight: 600; font-size: 13px; margin-bottom: 4px; }
+  .llmwiki-graph-card-type { font-size: 11px;
+    color: var(--text-secondary, #999); }
+  .llmwiki-graph-card-meta { font-size: 11px;
+    color: var(--text-secondary, #666); margin-top: 4px; }
+  .llmwiki-graph-arrow { text-align: center; color: var(--text-secondary, #999);
+    font-size: 18px; margin: 4px 0; }
 `;
 
 // ─── Public Entry Point ───
@@ -351,6 +373,17 @@ function showPreview(page: ParsedPage): void {
   editBtn.id = "llmwiki-edit-btn";
   editBtn.textContent = "Edit";
   toolbar.appendChild(editBtn);
+
+  // Only show Graph button for concept/entity pages
+  const pageType = page.frontmatter["type"] || "";
+  if (pageType === "concept" || pageType === "entity") {
+    const graphBtn = doc.createElement("button");
+    graphBtn.className = "llmwiki-btn";
+    graphBtn.id = "llmwiki-graph-btn";
+    graphBtn.textContent = "Graph";
+    toolbar.appendChild(graphBtn);
+  }
+
   state.content.appendChild(toolbar);
 
   // Rendered content (use innerHTML for markdown — visual only, no lookup needed)
@@ -427,6 +460,157 @@ function saveCurrentPage(): void {
   showToast("Saved");
 }
 
+// ─── Graph View ───
+
+function showGraphView(page: ParsedPage): void {
+  if (!state.content || !state.doc) return;
+  const doc = state.doc;
+
+  while (state.content.firstChild) state.content.removeChild(state.content.firstChild);
+
+  // Back button
+  const backBtn = doc.createElement("button");
+  backBtn.className = "llmwiki-btn llmwiki-graph-back";
+  backBtn.id = "llmwiki-graph-back-btn";
+  backBtn.textContent = "← Back to preview";
+  state.content.appendChild(backBtn);
+
+  const name = page.frontmatter["title"] || page.filePath;
+  const pageType = page.frontmatter["type"] || "concept";
+  const pageSlug = page.filePath.replace(/\.md$/, "");
+
+  // Layer 1: Current Node
+  const layer1 = doc.createElement("div");
+  layer1.className = "llmwiki-graph-layer";
+  const layer1Title = doc.createElement("div");
+  layer1Title.className = "llmwiki-graph-layer-title";
+  layer1Title.textContent = pageType === "concept" ? "Concept" : "Entity";
+  layer1.appendChild(layer1Title);
+
+  const cards1 = doc.createElement("div");
+  cards1.className = "llmwiki-graph-layer-cards";
+  const selfCard = buildGraphCard(doc, name, pageSlug, pageType, "", true);
+  cards1.appendChild(selfCard);
+  layer1.appendChild(cards1);
+  state.content.appendChild(layer1);
+
+  // Arrow
+  const arrow1 = doc.createElement("div");
+  arrow1.className = "llmwiki-graph-arrow";
+  arrow1.textContent = "↓";
+  state.content.appendChild(arrow1);
+
+  // Layer 2: Related Papers
+  const baseDir = getWikiBaseDir();
+  const papersDir = `${baseDir}/papers`;
+  const paperFiles = listDir(papersDir);
+  const relatedPapers: { title: string; slug: string; snippet: string }[] = [];
+
+  for (const pf of paperFiles) {
+    if (!pf.endsWith(".md")) continue;
+    const relPath = `papers/${pf.split("/").pop()!}`;
+    const paperPage = readPage(relPath);
+    if (!paperPage) continue;
+    const linkPattern = `[[${pageSlug}`;
+    if (paperPage.body.includes(linkPattern) || paperPage.body.includes(`[[${pageSlug}|`)) {
+      relatedPapers.push({
+        title: paperPage.frontmatter["title"] || pf,
+        slug: relPath.replace(/\.md$/, ""),
+        snippet: (paperPage.frontmatter["year"] || "") + (paperPage.frontmatter["authors"] ? ` — ${paperPage.frontmatter["authors"].slice(0, 60)}` : ""),
+      });
+    }
+  }
+
+  const layer2 = doc.createElement("div");
+  layer2.className = "llmwiki-graph-layer";
+  const layer2Title = doc.createElement("div");
+  layer2Title.className = "llmwiki-graph-layer-title";
+  layer2Title.textContent = `Related Papers (${relatedPapers.length})`;
+  layer2.appendChild(layer2Title);
+
+  const cards2 = doc.createElement("div");
+  cards2.className = "llmwiki-graph-layer-cards";
+  if (relatedPapers.length === 0) {
+    const empty = doc.createElement("div");
+    empty.className = "llmwiki-empty";
+    empty.textContent = "No papers reference this yet. Ingest more papers to build connections.";
+    cards2.appendChild(empty);
+  } else {
+    for (const rp of relatedPapers) {
+      cards2.appendChild(buildGraphCard(doc, rp.title, rp.slug, "paper", rp.snippet, false));
+    }
+  }
+  layer2.appendChild(cards2);
+  state.content.appendChild(layer2);
+
+  // Arrow
+  if (relatedPapers.length > 0) {
+    const arrow2 = doc.createElement("div");
+    arrow2.className = "llmwiki-graph-arrow";
+    arrow2.textContent = "↓";
+    state.content.appendChild(arrow2);
+  }
+
+  // Layer 3: See Also
+  const seeAlsoLinks = page.body.match(/\[\[(concepts|entities)\/([^\]|]+)/g) || [];
+  const uniqueSeeAlso = [...new Set(seeAlsoLinks.map(l => {
+    const m = l.match(/\[\[((?:concepts|entities)\/[^\]|]+)/);
+    return m ? m[1] : l.slice(2);
+  }))];
+
+  if (uniqueSeeAlso.length > 0) {
+    const layer3 = doc.createElement("div");
+    layer3.className = "llmwiki-graph-layer";
+    const layer3Title = doc.createElement("div");
+    layer3Title.className = "llmwiki-graph-layer-title";
+    layer3Title.textContent = "See Also";
+    layer3.appendChild(layer3Title);
+
+    const cards3 = doc.createElement("div");
+    cards3.className = "llmwiki-graph-layer-cards";
+    for (const saSlug of uniqueSeeAlso) {
+      const saPage = readPage(`${saSlug}.md`);
+      const saName = saPage?.frontmatter?.["title"] || saSlug.split("/").pop() || saSlug;
+      const saType = saPage?.frontmatter?.["type"] || (saSlug.startsWith("concepts/") ? "concept" : "entity");
+      cards3.appendChild(buildGraphCard(doc, saName, saSlug, saType, "", false));
+    }
+    layer3.appendChild(cards3);
+    state.content.appendChild(layer3);
+  }
+}
+
+function buildGraphCard(
+  doc: Document,
+  name: string,
+  slug: string,
+  type: string,
+  meta: string,
+  isCurrent: boolean,
+): HTMLElement {
+  const card = doc.createElement("div");
+  card.className = "llmwiki-graph-card" + (isCurrent ? " current" : "");
+  card.dataset.target = slug;
+
+  const nameEl = doc.createElement("div");
+  nameEl.className = "llmwiki-graph-card-name";
+  nameEl.textContent = name;
+  card.appendChild(nameEl);
+
+  const typeEl = doc.createElement("div");
+  typeEl.className = "llmwiki-graph-card-type";
+  typeEl.textContent = type;
+  card.appendChild(typeEl);
+
+  if (meta) {
+    const metaEl = doc.createElement("div");
+    metaEl.className = "llmwiki-graph-card-meta";
+    metaEl.textContent = meta;
+    card.appendChild(metaEl);
+  }
+
+  return card;
+}
+
 // ─── Content Click Handler ───
 
 function handleContentClick(e: Event): void {
@@ -446,6 +630,32 @@ function handleContentClick(e: Event): void {
   }
   if (target.id === "llmwiki-save-btn") {
     saveCurrentPage();
+    return;
+  }
+  if (target.id === "llmwiki-graph-btn") {
+    state.mode = "graph";
+    if (state.currentPage) showGraphView(state.currentPage);
+    return;
+  }
+  if (target.id === "llmwiki-graph-back-btn") {
+    state.mode = "preview";
+    if (state.currentPage) showPreview(state.currentPage);
+    return;
+  }
+
+  // Graph card click — navigate to linked page
+  if (target.classList.contains("llmwiki-graph-card") || target.closest(".llmwiki-graph-card")) {
+    const card = target.classList.contains("llmwiki-graph-card")
+      ? target
+      : target.closest(".llmwiki-graph-card") as HTMLElement;
+    const targetPath = card?.dataset.target;
+    if (targetPath) {
+      const path = targetPath.endsWith(".md") ? targetPath : `${targetPath}.md`;
+      state.currentNode = { name: path.split("/").pop() || "", path, type: "file" };
+      state.mode = "preview";
+      loadPage(path);
+      buildFileTree();
+    }
     return;
   }
 
