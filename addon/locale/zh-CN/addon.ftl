@@ -29,3 +29,8 @@ deep-research-complete = 研究完成。报告已保存至 { $path }
 deep-research-synthesizing = 正在综合研究发现...
 deep-research-meta = 正在生成元分析...
 deep-research-too-many-rounds = 研究达到轮次上限，正在综合当前发现。
+
+# 知识图谱
+graph-view-related-papers = 相关论文
+graph-view-see-also = 参见
+graph-view-no-papers = 暂无论文引用此内容。编译更多论文以建立关联。

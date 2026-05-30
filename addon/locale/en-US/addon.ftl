@@ -29,3 +29,8 @@ deep-research-complete = Research complete. Report saved to { $path }
 deep-research-synthesizing = Synthesizing research findings...
 deep-research-meta = Generating meta-analysis...
 deep-research-too-many-rounds = Research reached round limit. Synthesizing findings so far.
+
+# Knowledge Graph
+graph-view-related-papers = Related Papers
+graph-view-see-also = See Also
+graph-view-no-papers = No papers reference this yet. Ingest more papers to build connections.
