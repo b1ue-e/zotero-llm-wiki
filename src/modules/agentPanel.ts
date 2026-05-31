@@ -13,6 +13,7 @@ import { getWikiBaseDir, writeFile, makeDir, listDir } from "../utils/xpcom";
 import { searchRaw } from "./rawStorage";
 import { appendToSection } from "./wikiStorage";
 import { saveSession, searchSessions, loadSession, listSessions, generateMetaAnalysis, type SessionSaveData, type ResearchTrace } from "./deepResearch";
+import { track } from "./sessionMonitor";
 
 // ─── Types ───
 
@@ -486,6 +487,7 @@ function callLLM(messages: ChatMessage[]): Promise<LLMResponse> {
         return;
       }
       if (xhr.status < 200 || xhr.status >= 300) {
+        track("api_error", { status: xhr.status, message: xhr.responseText?.slice(0, 200) || "" });
         reject(
           new Error(
             `API error (${xhr.status}): ${xhr.responseText?.slice(0, 300) || ""}`,
@@ -506,8 +508,14 @@ function callLLM(messages: ChatMessage[]): Promise<LLMResponse> {
       }
     };
 
-    xhr.onerror = () => reject(new Error("Network error"));
-    xhr.ontimeout = () => reject(new Error("Request timed out"));
+    xhr.onerror = () => {
+      track("api_error", { status: 0, message: "Network error" });
+      reject(new Error("Network error"));
+    };
+    xhr.ontimeout = () => {
+      track("api_error", { status: 0, message: "Timeout" });
+      reject(new Error("Request timed out"));
+    };
     xhr.send(body);
   });
 }
@@ -1081,6 +1089,7 @@ async function executeDeepResearch(query: string): Promise<void> {
 
     let report = response.content || "";
     Zotero.debug(`[llmwiki] deep_research: loop ended, round=${round}, reportLen=${report.length}`);
+    track("deep_research_done", { reportLen: report.length, rounds: round, searches: searchCount });
 
     // Force full report if LLM returned too little (common when old session context was injected)
     if (report.length < 500) {
@@ -1248,6 +1257,7 @@ async function handleSend(): Promise<void> {
   updateSendButton();
 
   state.messages.push({ role: "user", content: text });
+  track("user_message", { text });
   addUserMessage(text);
 
   const thinkingEl = addThinking();
@@ -1359,6 +1369,7 @@ async function handleSend(): Promise<void> {
           ...response.rawMessage,
         } as ChatMessage);
         addAssistantMessage(response.content);
+        track("assistant_response", { text: response.content?.slice(0, 300) || "", hasContent: !!response.content });
       }
     } else if (round >= maxRounds) {
       addAssistantMessage(
@@ -1621,9 +1632,11 @@ async function executeToolCall(tc: ToolCall): Promise<string> {
         result = `Unknown tool: ${name}`;
     }
     card.update("complete", result);
+    track("tool_result", { name, success: true });
     return result;
   } catch (e: any) {
     card.update("failed", `Error: ${e.message || String(e)}`);
+    track("tool_result", { name, success: false, error: e?.message?.slice(0, 200) || String(e) });
     return `Tool error: ${e.message || String(e)}`;
   }
 }
