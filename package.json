@@ -1,7 +1,7 @@
 {
   "name": "zotero-llm-wiki",
   "type": "module",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "LLM-Wiki plugin for Zotero - compile paper knowledge with AI",
   "config": {
     "addonName": "LLM Wiki",

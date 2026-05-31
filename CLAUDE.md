@@ -34,6 +34,7 @@ src/
 │   ├── wikiBrowser.ts     # Zotero tab panel: wiki file browser + preview + editor
 │   ├── agentPanel.ts      # Zotero tab panel: AI chat with tool-calling + deep research mode
 │   ├── deepResearch.ts    # Autonomous multi-step research, session persistence, meta-analysis
+│   ├── sessionMonitor.ts  # Auto feedback capture: 6 signal detectors, ring buffer, snapshots
 │   ├── rawStorage.ts      # Raw JSON layer: paper metadata + fulltext (pre-LLM fallback)
 │   ├── pdfExtractor.ts    # PDF fulltext extraction via Zotero's index + gzip decompression
 │   └── preferenceScript.ts# Preferences pane init + defaults

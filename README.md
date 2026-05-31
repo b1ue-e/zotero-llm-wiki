@@ -29,7 +29,9 @@
 - 🔬 **深度研究** — 多轮自主研究 + 结构化报告 + 元分析 + Session 复用，三阶段量化 Prompt
 - 📚 **Wiki 浏览器** — 文件树浏览 + Markdown 预览 + 在线编辑 + `[[wikilinks]]` 双向导航
 - 🏷️ **概念/实体自动提取** — 编译时自动识别关键概念和命名实体，生成概念页面并建立知识图谱双向链接
+- 🕸️ **知识图谱探索** — Agent 图谱查询工具 + Wiki 浏览器卡片式关系视图，BFS 路径查找
 - 📄 **PDF 全文搜索** — 自动提取 PDF 全文存入原始数据层，Wiki 信息不足时作为搜索回退
+- 📊 **会话监控** — 6 种异常信号自动检测（重复提问/否定反馈/短报告/推理泄露/工具失败/API 故障），自动保存会话快照
 - 🌐 **完整中英文本地化** — 所有界面文本支持中文和英文
 
 ### 安装
@@ -92,6 +94,7 @@ src/
 │   ├── wikiBrowser.ts      # Wiki 浏览器面板
 │   ├── agentPanel.ts       # AI Agent 对话面板 (tool-calling + 深度研究)
 │   ├── deepResearch.ts     # 自主多步研究 + Session 持久化 + 元分析
+│   ├── sessionMonitor.ts   # 会话异常信号检测 + 自动反馈快照
 │   ├── conceptExtractor.ts # 概念/实体 LLM 提取
 │   ├── rawStorage.ts       # 原始 JSON 数据层
 │   ├── pdfExtractor.ts     # PDF 全文提取
@@ -120,7 +123,9 @@ Select a paper in Zotero, right-click → "LLM Wiki: Ingest", and the plugin cal
 - 🔬 **Deep Research** — Multi-round autonomous research + structured reports + meta-analysis + session reuse with quantified three-phase prompts
 - 📚 **Wiki Browser** — File tree + Markdown preview + inline editor + `[[wikilinks]]` navigation
 - 🏷️ **Concept/Entity Extraction** — Auto-identifies key concepts and named entities, builds knowledge graph with bidirectional links
+- 🕸️ **Knowledge Graph Explorer** — Agent graph query tools + Wiki Browser card-style relationship view, BFS path finding
 - 📄 **PDF Fulltext Search** — Auto-extracts PDF fulltext into raw data layer as search fallback
+- 📊 **Session Monitor** — 6 auto-detected anomaly signals (repeat questions, frustration, short reports, reasoning leaks, tool failures, API faults) with session snapshots
 - 🌐 **Bilingual UI** — Full English and Chinese localization
 
 ### Installation
@@ -183,6 +188,7 @@ src/
 │   ├── wikiBrowser.ts      # Wiki browser tab panel
 │   ├── agentPanel.ts       # AI Agent chat panel (tool-calling + deep research)
 │   ├── deepResearch.ts     # Autonomous multi-step research + session persistence
+│   ├── sessionMonitor.ts   # Auto feedback capture + signal detection
 │   ├── conceptExtractor.ts # Concept/entity LLM extraction
 │   ├── rawStorage.ts       # Raw JSON data layer
 │   ├── pdfExtractor.ts     # PDF fulltext extraction
