@@ -265,9 +265,13 @@ export function scanAll(): Suggestion[] {
       if (!similar) newSuggestions.push(s);
     };
 
-    detectCrossPaperPatterns().forEach(addUnique);
-    detectKnowledgeGaps().forEach(addUnique);
-    detectMissingPapers().forEach(addUnique);
+    const cp = detectCrossPaperPatterns();
+    const kg = detectKnowledgeGaps();
+    const mp = detectMissingPapers();
+    Zotero.debug(`[llmwiki] suggestionEngine: cross_paper=${cp.length} knowledge_gap=${kg.length} missing_paper=${mp.length}`);
+    cp.forEach(addUnique);
+    kg.forEach(addUnique);
+    mp.forEach(addUnique);
 
     const merged = [...kept, ...newSuggestions.filter(s => !ids.has(s.id))];
     writeCache(merged);
