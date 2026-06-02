@@ -188,7 +188,8 @@ const PANEL_CSS = `
   .llmwiki-suggestion-btn.dismiss:hover { color: #d32f2f; }
   .llmwiki-scan-btn { background: #1a56db; color: #fff; border: none; font-weight: 600; white-space: nowrap; font-size: 12px; padding: 4px 14px; }
   .llmwiki-scan-btn:hover { opacity: 0.9; background: #1a56db; }
-  .llmwiki-scan-btn:disabled { opacity: 0.6; }
+  .llmwiki-scan-btn:disabled { opacity: 0.6; animation: llmwiki-pulse 0.8s infinite; }
+  @keyframes llmwiki-pulse { 0%,100% { opacity: 0.6; } 50% { opacity: 1; } }
   .llmwiki-suggestion-feedback { font-size: 11px; color: #1a56db; }
   .llmwiki-suggestions-collapsed .llmwiki-suggestions-list { display: none; }
 `;
@@ -268,10 +269,23 @@ export function renderWikiBrowser({
       ev.stopPropagation();
       scanBtn.textContent = "Scanning...";
       scanBtn.disabled = true;
-      scanAll();
-      scanBtn.textContent = "Scan All";
-      scanBtn.disabled = false;
-      renderSuggestions();
+      // Brief delay so the "Scanning..." state is visible
+      setTimeout(() => {
+        scanAll();
+        scanBtn.textContent = "Scan All";
+        scanBtn.disabled = false;
+        renderSuggestions();
+        // Flash the feedback
+        const fb = state.doc?.getElementById("llmwiki-suggestions-feedback") as HTMLElement | null;
+        if (fb) {
+          fb.style.transition = "none";
+          fb.style.fontWeight = "700";
+          setTimeout(() => {
+            fb.style.transition = "font-weight 0.5s";
+            fb.style.fontWeight = "400";
+          }, 600);
+        }
+      }, 400);
     });
     actionRow.appendChild(scanBtn);
 
