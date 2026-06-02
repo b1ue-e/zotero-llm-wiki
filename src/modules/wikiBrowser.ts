@@ -171,12 +171,11 @@ const PANEL_CSS = `
     color: var(--text-secondary, #666); margin-top: 4px; }
   .llmwiki-graph-arrow { text-align: center; color: var(--text-secondary, #999);
     font-size: 18px; margin: 4px 0; }
-  .llmwiki-suggestions-bar { border-bottom: 1px solid var(--fill-quaternary, #e0e0e0); overflow: hidden; }
-  .llmwiki-suggestions-header { display: flex; align-items: center; gap: 8px; padding: 6px 8px; cursor: pointer; background: var(--fill-secondary, #f5f5f5); }
-  .llmwiki-suggestions-header:hover { background: var(--fill-tertiary, #e0e0e0); }
-  .llmwiki-suggestions-title { font-size: 12px; font-weight: 600; color: var(--accent-selected, #0060df); }
-  .llmwiki-suggestions-count { font-size: 11px; color: var(--text-secondary, #999); }
-  .llmwiki-suggestions-list { padding: 4px 8px; max-height: 300px; overflow-y: auto; }
+  .llmwiki-suggestions-bar { border-bottom: 2px solid var(--accent-selected, #0060df); overflow: hidden; background: #e8f0fe; }
+  .llmwiki-suggestions-header { padding: 8px 10px; cursor: pointer; }
+  .llmwiki-suggestions-title { font-size: 12px; font-weight: 700; color: #1a56db; }
+  .llmwiki-suggestions-count { font-size: 11px; color: #1a56db; background: #d0e0fc; padding: 1px 6px; border-radius: 8px; }
+  .llmwiki-suggestions-list { padding: 4px 10px 8px; max-height: 300px; overflow-y: auto; background: #fff; }
   .llmwiki-suggestion-item { padding: 6px 8px; margin: 4px 0; border-radius: 6px; font-size: 12px; background: var(--fill-secondary, #fafafa); border: 1px solid var(--fill-quaternary, #e0e0e0); }
   .llmwiki-suggestion-item.warning { border-left: 3px solid #e6a817; }
   .llmwiki-suggestion-item.info { border-left: 3px solid var(--accent-selected, #0060df); }
@@ -187,9 +186,10 @@ const PANEL_CSS = `
   .llmwiki-suggestion-btn:hover { background: var(--fill-tertiary, #e0e0e0); }
   .llmwiki-suggestion-btn.dismiss { color: var(--text-secondary, #999); border: none; background: none; padding: 2px 4px; }
   .llmwiki-suggestion-btn.dismiss:hover { color: #d32f2f; }
-  .llmwiki-scan-btn { background: var(--accent-selected, #0060df); color: #fff; border: none; font-weight: 600; white-space: nowrap; }
-  .llmwiki-scan-btn:hover { opacity: 0.85; background: var(--accent-selected, #0060df); }
-  .llmwiki-suggestion-feedback { font-size: 11px; color: var(--text-secondary, #666); padding: 4px 8px; }
+  .llmwiki-scan-btn { background: #1a56db; color: #fff; border: none; font-weight: 600; white-space: nowrap; font-size: 12px; padding: 4px 14px; }
+  .llmwiki-scan-btn:hover { opacity: 0.9; background: #1a56db; }
+  .llmwiki-scan-btn:disabled { opacity: 0.6; }
+  .llmwiki-suggestion-feedback { font-size: 11px; color: #1a56db; }
   .llmwiki-suggestions-collapsed .llmwiki-suggestions-list { display: none; }
 `;
 
@@ -230,6 +230,7 @@ export function renderWikiBrowser({
     suggestionsBar.className = "llmwiki-suggestions-bar llmwiki-suggestions-collapsed";
     suggestionsBar.id = "llmwiki-suggestions-bar";
 
+    // Header row: title + count + collapse toggle
     const suggestionsHeader = doc.createElement("div");
     suggestionsHeader.className = "llmwiki-suggestions-header";
     suggestionsHeader.addEventListener("click", () => {
@@ -237,41 +238,48 @@ export function renderWikiBrowser({
       renderSuggestions();
     });
 
+    const titleRow = doc.createElement("div");
+    titleRow.style.cssText = "display:flex;align-items:center;gap:8px;";
     const suggestionsTitle = doc.createElement("span");
     suggestionsTitle.className = "llmwiki-suggestions-title";
-    suggestionsTitle.textContent = "Suggestions";
-    suggestionsHeader.appendChild(suggestionsTitle);
+    suggestionsTitle.textContent = "🔍 Suggestions";
+    titleRow.appendChild(suggestionsTitle);
 
     const suggestionsCount = doc.createElement("span");
     suggestionsCount.className = "llmwiki-suggestions-count";
     suggestionsCount.id = "llmwiki-suggestions-count";
     suggestionsCount.textContent = "0";
-    suggestionsHeader.appendChild(suggestionsCount);
+    titleRow.appendChild(suggestionsCount);
 
+    const collapseIcon = doc.createElement("span");
+    collapseIcon.style.cssText = "margin-left:auto;font-size:14px;color:var(--text-secondary,#999);";
+    collapseIcon.textContent = "+";
+    collapseIcon.id = "llmwiki-suggestions-collapse-icon";
+    titleRow.appendChild(collapseIcon);
+    suggestionsHeader.appendChild(titleRow);
+
+    // Action row: scan button + feedback
+    const actionRow = doc.createElement("div");
+    actionRow.style.cssText = "display:flex;align-items:center;gap:8px;margin-top:6px;";
     const scanBtn = doc.createElement("button");
     scanBtn.className = "llmwiki-suggestion-btn llmwiki-scan-btn";
-    scanBtn.textContent = "Scan";
+    scanBtn.textContent = "Scan All";
     scanBtn.addEventListener("click", (ev) => {
       ev.stopPropagation();
-      scanBtn.textContent = "...";
+      scanBtn.textContent = "Scanning...";
       scanBtn.disabled = true;
       scanAll();
-      scanBtn.textContent = "Scan";
+      scanBtn.textContent = "Scan All";
       scanBtn.disabled = false;
       renderSuggestions();
     });
-    suggestionsHeader.appendChild(scanBtn);
+    actionRow.appendChild(scanBtn);
 
     const feedbackEl = doc.createElement("span");
     feedbackEl.className = "llmwiki-suggestion-feedback";
     feedbackEl.id = "llmwiki-suggestions-feedback";
-    suggestionsHeader.appendChild(feedbackEl);
-
-    const collapseIcon = doc.createElement("span");
-    collapseIcon.style.cssText = "margin-left:auto;font-size:14px;";
-    collapseIcon.textContent = "+";
-    collapseIcon.id = "llmwiki-suggestions-collapse-icon";
-    suggestionsHeader.appendChild(collapseIcon);
+    actionRow.appendChild(feedbackEl);
+    suggestionsHeader.appendChild(actionRow);
 
     suggestionsBar.appendChild(suggestionsHeader);
 
@@ -349,8 +357,8 @@ function renderSuggestions(): void {
   const fbEl = state.doc.getElementById("llmwiki-suggestions-feedback") as HTMLElement | null;
   if (fbEl) {
     fbEl.textContent = suggestions.length > 0
-      ? `${suggestions.length} found`
-      : "none found";
+      ? `${suggestions.length} issue(s) found`
+      : "No issues found";
   }
 
   const collapsed = bar.classList.contains("llmwiki-suggestions-collapsed");
