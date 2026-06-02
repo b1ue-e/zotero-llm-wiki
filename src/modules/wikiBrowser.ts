@@ -115,8 +115,10 @@ const PANEL_CSS = `
   .llmwiki-tree-item:hover { background: var(--fill-tertiary, #f0f0f0); }
   .llmwiki-tree-item.active { background: var(--accent-selected, #0060df);
     color: var(--text-selected, #fff); }
-  .llmwiki-tree-dir { font-weight: 600; padding: 6px 8px 3px; font-size: 12px;
-    text-transform: uppercase; color: var(--text-secondary, #666); }
+  .llmwiki-tree-dir { font-weight: 700; padding: 8px 8px 4px; font-size: 11px;
+    text-transform: uppercase; letter-spacing: 0.5px;
+    color: var(--accent-selected, #0060df); border-bottom: 1px solid
+    var(--fill-quaternary, #e0e0e0); margin: 4px 8px 2px; }
   .llmwiki-metadata { background: var(--fill-secondary, #f5f5f5);
     border-radius: 6px; padding: 12px; margin-bottom: 16px; }
   .llmwiki-metadata-title { font-size: 1.2em; font-weight: 600; margin-bottom: 8px; }
