@@ -11,7 +11,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Zotero-9-blue?logo=zotero" alt="Zotero 9" />
   <img src="https://img.shields.io/badge/license-AGPL--3.0-green" alt="AGPL-3.0" />
-  <img src="https://img.shields.io/badge/version-0.1.0-lightgrey" alt="v0.2.0" />
+  <img src="https://img.shields.io/badge/version-0.2.1-lightgrey" alt="v0.2.1" />
 </p>
 
 ---
@@ -30,6 +30,7 @@
 - 📚 **Wiki 浏览器** — 文件树浏览 + Markdown 预览 + 在线编辑 + `[[wikilinks]]` 双向导航
 - 🏷️ **概念/实体自动提取** — 编译时自动识别关键概念和命名实体，生成概念页面并建立知识图谱双向链接
 - 🕸️ **知识图谱探索** — Agent 图谱查询工具 + Wiki 浏览器卡片式关系视图，BFS 路径查找
+- 💡 **主动建议** — 自动检测跨论文模式、知识空白、缺失论文，Wiki Browser 内联展示
 - 📄 **PDF 全文搜索** — 自动提取 PDF 全文存入原始数据层，Wiki 信息不足时作为搜索回退
 - 📊 **会话监控** — 6 种异常信号自动检测（重复提问/否定反馈/短报告/推理泄露/工具失败/API 故障），自动保存会话快照
 - 🌐 **完整中英文本地化** — 所有界面文本支持中文和英文
@@ -124,6 +125,7 @@ Select a paper in Zotero, right-click → "LLM Wiki: Ingest", and the plugin cal
 - 📚 **Wiki Browser** — File tree + Markdown preview + inline editor + `[[wikilinks]]` navigation
 - 🏷️ **Concept/Entity Extraction** — Auto-identifies key concepts and named entities, builds knowledge graph with bidirectional links
 - 🕸️ **Knowledge Graph Explorer** — Agent graph query tools + Wiki Browser card-style relationship view, BFS path finding
+- 💡 **Proactive Suggestions** — Auto-detects cross-paper patterns, knowledge gaps, missing papers with inline Suggestions bar
 - 📄 **PDF Fulltext Search** — Auto-extracts PDF fulltext into raw data layer as search fallback
 - 📊 **Session Monitor** — 6 auto-detected anomaly signals (repeat questions, frustration, short reports, reasoning leaks, tool failures, API faults) with session snapshots
 - 🌐 **Bilingual UI** — Full English and Chinese localization
