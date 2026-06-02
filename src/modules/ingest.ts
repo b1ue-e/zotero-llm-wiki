@@ -1,4 +1,5 @@
 import { callLLM } from "./llmProvider";
+import { scanDelta } from "./suggestionEngine";
 import {
   buildSystemPrompt,
   buildUserPrompt,
@@ -116,6 +117,14 @@ export async function runIngest(item: Zotero.Item): Promise<void> {
           `[llmwiki] concept extraction failed (non-blocking): ${e.message}`,
         );
       }
+    }
+
+    // Trigger suggestion scan for new paper
+    try {
+      scanDelta([`papers/${slug}`]);
+      Zotero.debug(`[llmwiki] suggestion scan triggered for ${slug}`);
+    } catch (e: any) {
+      Zotero.debug(`[llmwiki] suggestion scan failed (non-blocking): ${e.message}`);
     }
 
     progress.startCloseTimer(0);
