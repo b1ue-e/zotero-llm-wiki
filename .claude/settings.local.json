@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(npm install *)",
+      "Bash(node *)",
+      "Bash(/Users/shouyaoqi/.claude/skills/brainstorming/scripts/start-server.sh *)",
+      "Bash(bash *)",
+      "Bash(zip -r /Users/shouyaoqi/zotero-llm-wiki/llm-wiki-v0.1.1.xpi .)",
+      "Bash(git tag *)",
+      "Bash(git push *)",
+      "Bash(gh release *)",
+      "Bash(grep -i 'suggest\\\\|scan\\\\|error\\\\|Error' __TRACKED_VAR__/Zotero/llm-wiki/debug.log)",
+      "Bash(grep -v \":0$\")"
+    ]
+  }
+}

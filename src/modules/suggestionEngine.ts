@@ -177,7 +177,7 @@ function detectKnowledgeGaps(): Suggestion[] {
   }
 
   for (const [key, entry] of missingRefs) {
-    if (entry.count < 2) continue;
+    if (entry.papers.length < 2) continue;
     const conceptName = key.split("/").pop() || key;
     results.push({
       id: makeId("knowledge_gap"),
