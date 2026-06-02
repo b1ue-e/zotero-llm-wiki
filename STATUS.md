@@ -159,14 +159,27 @@ Automatic detection of anomalous conversation signals with session snapshot savi
 - Anthropic Claude API support (different message format, tool calling)
 - Model selector in preferences
 
-### Agent Proactive Suggestions 🟠 P1 — High
+### Agent Proactive Suggestions ✅ Rule Engine Complete
 
-Agent detects patterns in the knowledge base and proactively suggests actions.
+Rule-based detection of patterns in the knowledge base, with Suggestions bar in Wiki Browser.
 
-- [ ] Cross-paper pattern detection: same method used independently, contradictory findings, shared datasets
-- [ ] Knowledge gap alerts: "These 3 papers all use method X but aren't linked — create a concept page?"
-- [ ] Missing paper detection: "Your wiki covers single-cell methods, but you haven't ingested Paper Y which is highly cited in this area"
-- [ ] Periodic scan: optionally run on a schedule or after each ingest
+**Module:** `src/modules/suggestionEngine.ts` — 3 detectors, JSON cache, `scanAll()`/`scanDelta()`/`dismiss()`
+
+- [x] Cross-paper pattern detection: papers sharing [[wikilinks]] concepts but not interlinked
+- [x] Knowledge gap alerts: referenced concepts/entities that don't exist on disk (≥2 papers)
+- [x] Missing paper detection: quoted titles in Related Work/References not in wiki
+- [x] Wiki Browser Suggestions bar: collapsible, Scan All button, dismiss per item
+- [x] Auto-trigger: `scanDelta()` after each ingest
+
+### Agent Proactive Suggestions — LLM Enhancement 🟡 P2 — Medium
+
+Upgrade the rule engine with LLM-powered semantic analysis for deeper insights.
+
+- [ ] Semantic concept matching: "single-cell-genomics" and "single-cell-transcriptomics" detected as related even with different slugs
+- [ ] Method coherence analysis: LLM reads `## Method` sections across papers to find shared approaches not captured by wikilinks
+- [ ] Contradiction detection: LLM identifies papers with opposing conclusions
+- [ ] Suggestion quality scoring: LLM ranks suggestions by relevance/actionability
+- [ ] "Deep Analyze" button: on any suggestion, run LLM to produce a detailed analysis with specific recommendations
 
 ### Citation & Literature Management 🟡 P2 — Medium
 
