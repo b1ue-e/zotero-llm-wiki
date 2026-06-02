@@ -183,10 +183,13 @@ const PANEL_CSS = `
   .llmwiki-suggestion-title { font-weight: 600; margin-bottom: 2px; }
   .llmwiki-suggestion-detail { color: var(--text-secondary, #666); font-size: 11px; margin-bottom: 4px; }
   .llmwiki-suggestion-actions { display: flex; gap: 6px; }
-  .llmwiki-suggestion-btn { font-size: 11px; padding: 2px 8px; border-radius: 3px; border: 1px solid var(--fill-quaternary, #ccc); background: var(--fill-secondary, #f5f5f5); cursor: pointer; }
+  .llmwiki-suggestion-btn { font-size: 11px; padding: 3px 10px; border-radius: 4px; border: 1px solid var(--fill-quaternary, #ccc); background: var(--fill-secondary, #f5f5f5); cursor: pointer; color: var(--text-primary, #333); }
   .llmwiki-suggestion-btn:hover { background: var(--fill-tertiary, #e0e0e0); }
-  .llmwiki-suggestion-btn.dismiss { color: var(--text-secondary, #999); border: none; background: none; }
+  .llmwiki-suggestion-btn.dismiss { color: var(--text-secondary, #999); border: none; background: none; padding: 2px 4px; }
   .llmwiki-suggestion-btn.dismiss:hover { color: #d32f2f; }
+  .llmwiki-scan-btn { background: var(--accent-selected, #0060df); color: #fff; border: none; font-weight: 600; white-space: nowrap; }
+  .llmwiki-scan-btn:hover { opacity: 0.85; background: var(--accent-selected, #0060df); }
+  .llmwiki-suggestion-feedback { font-size: 11px; color: var(--text-secondary, #666); padding: 4px 8px; }
   .llmwiki-suggestions-collapsed .llmwiki-suggestions-list { display: none; }
 `;
 
@@ -246,14 +249,23 @@ export function renderWikiBrowser({
     suggestionsHeader.appendChild(suggestionsCount);
 
     const scanBtn = doc.createElement("button");
-    scanBtn.className = "llmwiki-suggestion-btn";
-    scanBtn.textContent = "Scan All";
+    scanBtn.className = "llmwiki-suggestion-btn llmwiki-scan-btn";
+    scanBtn.textContent = "Scan";
     scanBtn.addEventListener("click", (ev) => {
       ev.stopPropagation();
+      scanBtn.textContent = "...";
+      scanBtn.disabled = true;
       scanAll();
+      scanBtn.textContent = "Scan";
+      scanBtn.disabled = false;
       renderSuggestions();
     });
     suggestionsHeader.appendChild(scanBtn);
+
+    const feedbackEl = doc.createElement("span");
+    feedbackEl.className = "llmwiki-suggestion-feedback";
+    feedbackEl.id = "llmwiki-suggestions-feedback";
+    suggestionsHeader.appendChild(feedbackEl);
 
     const collapseIcon = doc.createElement("span");
     collapseIcon.style.cssText = "margin-left:auto;font-size:14px;";
@@ -332,6 +344,14 @@ function renderSuggestions(): void {
 
   const suggestions = getSuggestions();
   countEl.textContent = String(suggestions.length);
+
+  // Update feedback
+  const fbEl = state.doc.getElementById("llmwiki-suggestions-feedback") as HTMLElement | null;
+  if (fbEl) {
+    fbEl.textContent = suggestions.length > 0
+      ? `${suggestions.length} found`
+      : "none found";
+  }
 
   const collapsed = bar.classList.contains("llmwiki-suggestions-collapsed");
   if (iconEl) iconEl.textContent = collapsed ? "+" : "−";
