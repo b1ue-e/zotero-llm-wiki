@@ -8,6 +8,7 @@ import {
   type ParsedPage,
 } from "./wikiReader";
 import { getWikiBaseDir, readFile, listDir } from "../utils/xpcom";
+import { getSuggestions, scanAll, dismissSuggestion } from "./suggestionEngine";
 
 // ─── State ───
 
@@ -170,6 +171,23 @@ const PANEL_CSS = `
     color: var(--text-secondary, #666); margin-top: 4px; }
   .llmwiki-graph-arrow { text-align: center; color: var(--text-secondary, #999);
     font-size: 18px; margin: 4px 0; }
+  .llmwiki-suggestions-bar { border-bottom: 1px solid var(--fill-quaternary, #e0e0e0); overflow: hidden; }
+  .llmwiki-suggestions-header { display: flex; align-items: center; gap: 8px; padding: 6px 8px; cursor: pointer; background: var(--fill-secondary, #f5f5f5); }
+  .llmwiki-suggestions-header:hover { background: var(--fill-tertiary, #e0e0e0); }
+  .llmwiki-suggestions-title { font-size: 12px; font-weight: 600; color: var(--accent-selected, #0060df); }
+  .llmwiki-suggestions-count { font-size: 11px; color: var(--text-secondary, #999); }
+  .llmwiki-suggestions-list { padding: 4px 8px; max-height: 300px; overflow-y: auto; }
+  .llmwiki-suggestion-item { padding: 6px 8px; margin: 4px 0; border-radius: 6px; font-size: 12px; background: var(--fill-secondary, #fafafa); border: 1px solid var(--fill-quaternary, #e0e0e0); }
+  .llmwiki-suggestion-item.warning { border-left: 3px solid #e6a817; }
+  .llmwiki-suggestion-item.info { border-left: 3px solid var(--accent-selected, #0060df); }
+  .llmwiki-suggestion-title { font-weight: 600; margin-bottom: 2px; }
+  .llmwiki-suggestion-detail { color: var(--text-secondary, #666); font-size: 11px; margin-bottom: 4px; }
+  .llmwiki-suggestion-actions { display: flex; gap: 6px; }
+  .llmwiki-suggestion-btn { font-size: 11px; padding: 2px 8px; border-radius: 3px; border: 1px solid var(--fill-quaternary, #ccc); background: var(--fill-secondary, #f5f5f5); cursor: pointer; }
+  .llmwiki-suggestion-btn:hover { background: var(--fill-tertiary, #e0e0e0); }
+  .llmwiki-suggestion-btn.dismiss { color: var(--text-secondary, #999); border: none; background: none; }
+  .llmwiki-suggestion-btn.dismiss:hover { color: #d32f2f; }
+  .llmwiki-suggestions-collapsed .llmwiki-suggestions-list { display: none; }
 `;
 
 // ─── Public Entry Point ───
@@ -203,6 +221,54 @@ export function renderWikiBrowser({
     // Tree panel wrapper (toolbar + tree)
     const treePanel = doc.createElement("div");
     treePanel.id = "llmwiki-browser-tree-panel";
+
+    // Suggestions bar (above tree toolbar)
+    const suggestionsBar = doc.createElement("div");
+    suggestionsBar.className = "llmwiki-suggestions-bar llmwiki-suggestions-collapsed";
+    suggestionsBar.id = "llmwiki-suggestions-bar";
+
+    const suggestionsHeader = doc.createElement("div");
+    suggestionsHeader.className = "llmwiki-suggestions-header";
+    suggestionsHeader.addEventListener("click", () => {
+      suggestionsBar.classList.toggle("llmwiki-suggestions-collapsed");
+      renderSuggestions();
+    });
+
+    const suggestionsTitle = doc.createElement("span");
+    suggestionsTitle.className = "llmwiki-suggestions-title";
+    suggestionsTitle.textContent = "Suggestions";
+    suggestionsHeader.appendChild(suggestionsTitle);
+
+    const suggestionsCount = doc.createElement("span");
+    suggestionsCount.className = "llmwiki-suggestions-count";
+    suggestionsCount.id = "llmwiki-suggestions-count";
+    suggestionsCount.textContent = "0";
+    suggestionsHeader.appendChild(suggestionsCount);
+
+    const scanBtn = doc.createElement("button");
+    scanBtn.className = "llmwiki-suggestion-btn";
+    scanBtn.textContent = "Scan All";
+    scanBtn.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      scanAll();
+      renderSuggestions();
+    });
+    suggestionsHeader.appendChild(scanBtn);
+
+    const collapseIcon = doc.createElement("span");
+    collapseIcon.style.cssText = "margin-left:auto;font-size:14px;";
+    collapseIcon.textContent = "+";
+    collapseIcon.id = "llmwiki-suggestions-collapse-icon";
+    suggestionsHeader.appendChild(collapseIcon);
+
+    suggestionsBar.appendChild(suggestionsHeader);
+
+    const suggestionsList = doc.createElement("div");
+    suggestionsList.className = "llmwiki-suggestions-list";
+    suggestionsList.id = "llmwiki-suggestions-list";
+    suggestionsBar.appendChild(suggestionsList);
+
+    treePanel.appendChild(suggestionsBar);
 
     const treeToolbar = doc.createElement("div");
     treeToolbar.className = "llmwiki-tree-toolbar";
@@ -248,8 +314,102 @@ export function renderWikiBrowser({
     splitter.addEventListener("mousedown", handleSplitterDrag);
 
     buildFileTree();
+    renderSuggestions();
   } catch (e: any) {
     body.textContent = `Error: ${e.message || String(e)}`;
+  }
+}
+
+// ─── Suggestions ───
+
+function renderSuggestions(): void {
+  if (!state.doc) return;
+  const listEl = state.doc.getElementById("llmwiki-suggestions-list") as HTMLElement | null;
+  const countEl = state.doc.getElementById("llmwiki-suggestions-count") as HTMLElement | null;
+  const bar = state.doc.getElementById("llmwiki-suggestions-bar") as HTMLElement | null;
+  const iconEl = state.doc.getElementById("llmwiki-suggestions-collapse-icon") as HTMLElement | null;
+  if (!listEl || !countEl || !bar) return;
+
+  const suggestions = getSuggestions();
+  countEl.textContent = String(suggestions.length);
+
+  const collapsed = bar.classList.contains("llmwiki-suggestions-collapsed");
+  if (iconEl) iconEl.textContent = collapsed ? "+" : "−";
+
+  if (collapsed) return;
+
+  while (listEl.firstChild) listEl.removeChild(listEl.firstChild);
+  const doc = listEl.ownerDocument!;
+
+  if (suggestions.length === 0) {
+    const empty = doc.createElement("div");
+    empty.className = "llmwiki-suggestion-detail";
+    empty.textContent = "No suggestions found. Click 'Scan All' to check for patterns in your wiki.";
+    empty.style.padding = "8px";
+    listEl.appendChild(empty);
+    return;
+  }
+
+  for (const s of suggestions) {
+    const item = doc.createElement("div");
+    item.className = `llmwiki-suggestion-item ${s.severity}`;
+
+    const titleEl = doc.createElement("div");
+    titleEl.className = "llmwiki-suggestion-title";
+    titleEl.textContent = (s.severity === "warning" ? "⚠️ " : "ℹ️ ") + s.title;
+    item.appendChild(titleEl);
+
+    const detailEl = doc.createElement("div");
+    detailEl.className = "llmwiki-suggestion-detail";
+    detailEl.textContent = s.detail;
+    item.appendChild(detailEl);
+
+    if (s.related_pages && s.related_pages.length > 0) {
+      const pagesEl = doc.createElement("div");
+      pagesEl.className = "llmwiki-suggestion-detail";
+      pagesEl.style.cssText = "margin-bottom:4px;";
+      for (const p of s.related_pages) {
+        const link = doc.createElement("span");
+        link.className = "wikilink";
+        link.textContent = p.split("/").pop() || p;
+        link.dataset.target = p.endsWith(".md") ? p : `${p}.md`;
+        link.style.cssText = "margin-right:6px;cursor:pointer;";
+        pagesEl.appendChild(link);
+      }
+      item.appendChild(pagesEl);
+    }
+
+    const actionsEl = doc.createElement("div");
+    actionsEl.className = "llmwiki-suggestion-actions";
+
+    const actionBtn = doc.createElement("button");
+    actionBtn.className = "llmwiki-suggestion-btn";
+    actionBtn.textContent = s.action_label;
+    actionBtn.addEventListener("click", (ev: Event) => {
+      ev.stopPropagation();
+      if (s.related_pages.length > 0) {
+        const target = s.related_pages[0];
+        const path = target.endsWith(".md") ? target : `${target}.md`;
+        state.currentNode = { name: path.split("/").pop() || "", path, type: "file" };
+        state.mode = "preview";
+        loadPage(path);
+        buildFileTree();
+      }
+    });
+    actionsEl.appendChild(actionBtn);
+
+    const dismissBtn = doc.createElement("button");
+    dismissBtn.className = "llmwiki-suggestion-btn dismiss";
+    dismissBtn.textContent = "✕";
+    dismissBtn.addEventListener("click", (ev: Event) => {
+      ev.stopPropagation();
+      dismissSuggestion(s.id);
+      renderSuggestions();
+    });
+    actionsEl.appendChild(dismissBtn);
+
+    item.appendChild(actionsEl);
+    listEl.appendChild(item);
   }
 }
 
