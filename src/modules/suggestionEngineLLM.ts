@@ -208,14 +208,18 @@ export async function detectMethodOverlaps(): Promise<Suggestion[]> {
       `**${p.title}** (${p.slug}): Method: ${p.method}\nConcepts: ${p.concepts.join(", ") || "none"}`
     ).join("\n\n");
 
-    Zotero.debug(`[llmwiki] suggestionEngineLLM: calling LLM for method overlap (${paperMethods.length} papers)`);
+    Zotero.debug(`[llmwiki] suggestionEngineLLM: calling LLM for method overlap (${paperMethods.length} papers, promptLen=${papersText.length})`);
     const response = await callLLM([
       { role: "system", content: METHOD_OVERLAP_PROMPT },
       { role: "user", content: `Papers:\n\n${papersText}\n\nFind method overlaps:` },
     ]);
+    Zotero.debug(`[llmwiki] suggestionEngineLLM: method overlap LLM response len=${response.length}, preview="${response.slice(0, 120)}"`);
 
     const jsonMatch = response.match(/\[[\s\S]*\]/);
-    if (!jsonMatch) return [];
+    if (!jsonMatch) {
+      Zotero.debug(`[llmwiki] suggestionEngineLLM: method overlap no JSON array found in response`);
+      return [];
+    }
     const overlaps: { papers: string[]; shared_method: string; detail: string }[] = JSON.parse(jsonMatch[0]);
     if (!Array.isArray(overlaps)) return [];
 
