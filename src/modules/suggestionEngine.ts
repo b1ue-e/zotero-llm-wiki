@@ -1,5 +1,14 @@
 import { getWikiBaseDir, makeDir, writeFile, readFile, listDir } from "../utils/xpcom";
-import { readPage } from "./wikiReader";
+import { parseFrontmatter, type ParsedPage } from "./wikiReader";
+
+// Direct read to avoid bundle dependency issues with readPage
+function readPaperPage(relPath: string): ParsedPage | null {
+  const fullPath = `${getWikiBaseDir()}/${relPath}`;
+  const raw = readFile(fullPath);
+  if (!raw) return null;
+  const { frontmatter, body } = parseFrontmatter(raw);
+  return { frontmatter, body, filePath: relPath };
+}
 
 // ─── Types ───
 
@@ -94,7 +103,7 @@ function detectCrossPaperPatterns(): Suggestion[] {
 
   for (const pf of paperFiles) {
     const slug = `papers/${pf.split("/").pop()!.replace(/\.md$/, "")}`;
-    const page = readPage(slug);
+    const page = readPaperPage(slug);
     if (!page) continue;
     paperTitles.set(slug, page.frontmatter["title"] || slug);
 
@@ -158,7 +167,7 @@ function detectKnowledgeGaps(): Suggestion[] {
 
   for (const pf of paperFiles) {
     const slug = `papers/${pf.split("/").pop()!.replace(/\.md$/, "")}`;
-    const page = readPage(slug);
+    const page = readPaperPage(slug);
     if (!page) continue;
 
     const refs = page.body.matchAll(/\[\[(concepts|entities)\/([^\]|]+)/g);
@@ -206,7 +215,7 @@ function detectMissingPapers(): Suggestion[] {
   const existingTitles = new Set<string>();
   for (const pf of paperFiles) {
     const slug = `papers/${pf.split("/").pop()!.replace(/\.md$/, "")}`;
-    const page = readPage(slug);
+    const page = readPaperPage(slug);
     if (page) {
       existingTitles.add((page.frontmatter["title"] || "").toLowerCase().trim());
     }
@@ -214,7 +223,7 @@ function detectMissingPapers(): Suggestion[] {
 
   for (const pf of paperFiles) {
     const slug = `papers/${pf.split("/").pop()!.replace(/\.md$/, "")}`;
-    const page = readPage(slug);
+    const page = readPaperPage(slug);
     if (!page) continue;
 
     const body = page.body;

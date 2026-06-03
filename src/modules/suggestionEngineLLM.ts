@@ -1,7 +1,15 @@
 import { callLLM } from "./llmProvider";
-import { getWikiBaseDir, listDir } from "../utils/xpcom";
-import { readPage } from "./wikiReader";
+import { getWikiBaseDir, readFile, listDir } from "../utils/xpcom";
+import { parseFrontmatter, type ParsedPage } from "./wikiReader";
 import type { Suggestion } from "./suggestionEngine";
+
+function readPaperPage(relPath: string): ParsedPage | null {
+  const fullPath = `${getWikiBaseDir()}/${relPath}`;
+  const raw = readFile(fullPath);
+  if (!raw) return null;
+  const { frontmatter, body } = parseFrontmatter(raw);
+  return { frontmatter, body, filePath: relPath };
+}
 
 // ─── Helpers ───
 
@@ -62,7 +70,7 @@ export async function detectSemanticPatterns(): Promise<Suggestion[]> {
 
     for (const pf of paperFiles) {
       const slug = `papers/${pf.split("/").pop()!.replace(/\.md$/, "")}`;
-      const page = readPage(slug);
+      const page = readPaperPage(slug);
       if (!page) continue;
       paperTitles.set(slug, page.frontmatter["title"] || slug);
 
@@ -166,7 +174,7 @@ export async function detectMethodOverlaps(): Promise<Suggestion[]> {
 
     for (const pf of paperFiles) {
       const slug = `papers/${pf.split("/").pop()!.replace(/\.md$/, "")}`;
-      const page = readPage(slug);
+      const page = readPaperPage(slug);
       if (!page) { Zotero.debug(`[llmwiki] suggestionEngineLLM: readPage failed for ${slug}`); continue; }
 
       const sections = page.body.split(/^##\s+/m);
