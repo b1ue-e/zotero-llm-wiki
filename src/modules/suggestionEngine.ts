@@ -113,6 +113,7 @@ function detectCrossPaperPatterns(): Suggestion[] {
     paperLinks.set(slug, paperRefs);
   }
 
+  Zotero.debug(`[llmwiki] suggestionEngine: crossPaper loaded ${paperConcepts.size} papers, ${[...paperConcepts.values()].reduce((s, v) => s + v.size, 0)} concept refs`);
   const slugs = [...paperConcepts.keys()];
   for (let i = 0; i < slugs.length; i++) {
     for (let j = i + 1; j < slugs.length; j++) {
