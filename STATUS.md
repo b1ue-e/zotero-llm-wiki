@@ -171,15 +171,20 @@ Rule-based detection of patterns in the knowledge base, with Suggestions bar in 
 - [x] Wiki Browser Suggestions bar: collapsible, Scan All button, dismiss per item
 - [x] Auto-trigger: `scanDelta()` after each ingest
 
-### Agent Proactive Suggestions — LLM Enhancement 🟡 P2 — Medium
+### Agent Proactive Suggestions — LLM Enhancement ✅ Complete
 
-Upgrade the rule engine with LLM-powered semantic analysis for deeper insights.
+LLM-powered semantic analysis integrated via "Deep Scan" button alongside rule engine.
 
-- [ ] Semantic concept matching: "single-cell-genomics" and "single-cell-transcriptomics" detected as related even with different slugs
-- [ ] Method coherence analysis: LLM reads `## Method` sections across papers to find shared approaches not captured by wikilinks
+**Module:** `src/modules/suggestionEngineLLM.ts` — two LLM-based detectors
+
+- [x] Semantic concept matching: LLM groups related concepts by meaning, detects papers sharing related concepts that aren't linked
+- [x] Method coherence analysis: LLM reads `## Method` sections (500-char truncation) to find shared techniques not captured by wikilinks
+- [x] "Deep Scan" button: runs rule engine + LLM detectors in parallel, merges results
+- [x] LLM results persist to `suggestions.json` across restarts
+- [x] 🤖 icon + blue title styling for LLM-sourced suggestions
 - [ ] Contradiction detection: LLM identifies papers with opposing conclusions
 - [ ] Suggestion quality scoring: LLM ranks suggestions by relevance/actionability
-- [ ] "Deep Analyze" button: on any suggestion, run LLM to produce a detailed analysis with specific recommendations
+- [ ] "Deep Analyze" per-item: on any suggestion, run LLM for detailed analysis
 
 ### Citation & Literature Management 🟡 P2 — Medium
 
