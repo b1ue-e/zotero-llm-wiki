@@ -8,7 +8,7 @@ import {
   type ParsedPage,
 } from "./wikiReader";
 import { getWikiBaseDir, readFile, listDir } from "../utils/xpcom";
-import { getSuggestions, scanAll, dismissSuggestion } from "./suggestionEngine";
+import { getSuggestions, scanAll, dismissSuggestion, addSuggestions } from "./suggestionEngine";
 import { detectSemanticPatterns, detectMethodOverlaps } from "./suggestionEngineLLM";
 
 // ─── State ───
@@ -312,6 +312,7 @@ export function renderWikiBrowser({
           detectMethodOverlaps(),
         ]);
         _llmSuggestions = [...semantic, ...methods];
+      addSuggestions([...semantic, ...methods]);
       } catch (e: any) {
         // LLM failures are non-blocking — rule engine results still show
       }

@@ -296,6 +296,13 @@ export function scanDelta(_slugs: string[]): void {
   scanAll();
 }
 
+export function addSuggestions(items: Suggestion[]): void {
+  if (items.length === 0) return;
+  const existing = readCache();
+  const kept = existing.filter(s => !s.id?.includes("llm_"));
+  writeCache([...kept, ...items]);
+}
+
 export function getSuggestions(): Suggestion[] {
   return readCache().filter(s => !s.dismissed);
 }
