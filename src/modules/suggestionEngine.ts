@@ -5,6 +5,7 @@ import { parseFrontmatter, type ParsedPage } from "./wikiReader";
 function readPaperPage(relPath: string): ParsedPage | null {
   const fullPath = `${getWikiBaseDir()}/${relPath}`;
   const raw = readFile(fullPath);
+  Zotero.debug(`[llmwiki] suggestionEngine readPaperPage: path=${fullPath} raw=${!!raw} len=${raw?.length || 0}`);
   if (!raw) return null;
   const { frontmatter, body } = parseFrontmatter(raw);
   return { frontmatter, body, filePath: relPath };
