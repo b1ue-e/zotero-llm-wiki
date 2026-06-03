@@ -9,6 +9,7 @@ import {
 } from "./wikiReader";
 import { getWikiBaseDir, readFile, listDir } from "../utils/xpcom";
 import { getSuggestions, scanAll, dismissSuggestion } from "./suggestionEngine";
+import { detectSemanticPatterns, detectMethodOverlaps } from "./suggestionEngineLLM";
 
 // ─── State ───
 
@@ -33,6 +34,8 @@ const state: BrowserState = {
   doc: null,
   editor: null,
 };
+
+let _llmSuggestions: any[] = [];
 
 // ─── Markdown Rendering ───
 
@@ -189,6 +192,9 @@ const PANEL_CSS = `
   .llmwiki-scan-btn { background: #1a56db; color: #fff; border: none; font-weight: 600; white-space: nowrap; font-size: 12px; padding: 4px 14px; }
   .llmwiki-scan-btn:hover { opacity: 0.9; background: #1a56db; }
   .llmwiki-scan-btn:disabled { opacity: 0.6; animation: llmwiki-pulse 0.8s infinite; }
+  .llmwiki-deep-scan-btn { background: transparent; color: #1a56db; border: 1.5px solid #1a56db; font-weight: 600; white-space: nowrap; font-size: 12px; padding: 4px 14px; border-radius: 4px; cursor: pointer; }
+  .llmwiki-deep-scan-btn:hover { background: #e8f0fe; }
+  .llmwiki-deep-scan-btn:disabled { opacity: 0.5; }
   @keyframes llmwiki-pulse { 0%,100% { opacity: 0.6; } 50% { opacity: 1; } }
   .llmwiki-suggestion-feedback { font-size: 11px; color: #1a56db; }
   .llmwiki-suggestions-collapsed .llmwiki-suggestions-list { display: none; }
@@ -289,6 +295,32 @@ export function renderWikiBrowser({
     });
     actionRow.appendChild(scanBtn);
 
+    const deepScanBtn = doc.createElement("button");
+    deepScanBtn.className = "llmwiki-suggestion-btn llmwiki-deep-scan-btn";
+    deepScanBtn.textContent = "Deep Scan";
+    deepScanBtn.title = "LLM-powered semantic analysis";
+    deepScanBtn.addEventListener("click", async (ev) => {
+      ev.stopPropagation();
+      scanBtn.disabled = true;
+      deepScanBtn.disabled = true;
+      deepScanBtn.textContent = "Scanning...";
+      scanAll();
+      try {
+        const [semantic, methods] = await Promise.all([
+          detectSemanticPatterns(),
+          detectMethodOverlaps(),
+        ]);
+        _llmSuggestions = [...semantic, ...methods];
+      } catch (e: any) {
+        // LLM failures are non-blocking — rule engine results still show
+      }
+      deepScanBtn.textContent = "Deep Scan";
+      deepScanBtn.disabled = false;
+      scanBtn.disabled = false;
+      renderSuggestions();
+    });
+    actionRow.appendChild(deepScanBtn);
+
     const feedbackEl = doc.createElement("span");
     feedbackEl.className = "llmwiki-suggestion-feedback";
     feedbackEl.id = "llmwiki-suggestions-feedback";
@@ -364,14 +396,14 @@ function renderSuggestions(): void {
   const iconEl = state.doc.getElementById("llmwiki-suggestions-collapse-icon") as HTMLElement | null;
   if (!listEl || !countEl || !bar) return;
 
-  const suggestions = getSuggestions();
-  countEl.textContent = String(suggestions.length);
+  const allSuggestions = [...getSuggestions(), ..._llmSuggestions];
+  countEl.textContent = String(allSuggestions.length);
 
   // Update feedback
   const fbEl = state.doc.getElementById("llmwiki-suggestions-feedback") as HTMLElement | null;
   if (fbEl) {
-    fbEl.textContent = suggestions.length > 0
-      ? `${suggestions.length} issue(s) found`
+    fbEl.textContent = allSuggestions.length > 0
+      ? `${allSuggestions.length} issue(s) found`
       : "No issues found";
   }
 
@@ -383,7 +415,7 @@ function renderSuggestions(): void {
   while (listEl.firstChild) listEl.removeChild(listEl.firstChild);
   const doc = listEl.ownerDocument!;
 
-  if (suggestions.length === 0) {
+  if (allSuggestions.length === 0) {
     const empty = doc.createElement("div");
     empty.className = "llmwiki-suggestion-detail";
     empty.textContent = "No suggestions found. Click 'Scan All' to check for patterns in your wiki.";
@@ -392,13 +424,14 @@ function renderSuggestions(): void {
     return;
   }
 
-  for (const s of suggestions) {
+  for (const s of allSuggestions) {
     const item = doc.createElement("div");
     item.className = `llmwiki-suggestion-item ${s.severity}`;
 
     const titleEl = doc.createElement("div");
     titleEl.className = "llmwiki-suggestion-title";
-    titleEl.textContent = (s.severity === "warning" ? "⚠️ " : "ℹ️ ") + s.title;
+    const isLLM = s.id && s.id.includes("llm_");
+    titleEl.textContent = (isLLM ? "🤖 " : s.severity === "warning" ? "⚠️ " : "ℹ️ ") + s.title;
     item.appendChild(titleEl);
 
     const detailEl = doc.createElement("div");
