@@ -182,7 +182,7 @@ export async function detectMethodOverlaps(): Promise<Suggestion[]> {
       let methodText = "";
       for (const sec of sections) {
         if (/^Method|^方法/i.test(sec)) {
-          methodText = sec.replace(/^Method\n?/i, "").replace(/^方法\n?/, "").slice(0, 1500).trim();
+          methodText = sec.replace(/^Method\n?/i, "").replace(/^方法\n?/, "").slice(0, 500).trim();
           break;
         }
       }
