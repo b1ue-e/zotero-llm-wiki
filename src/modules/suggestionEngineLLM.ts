@@ -167,7 +167,7 @@ export async function detectMethodOverlaps(): Promise<Suggestion[]> {
     for (const pf of paperFiles) {
       const slug = `papers/${pf.split("/").pop()!.replace(/\.md$/, "")}`;
       const page = readPage(slug);
-      if (!page) continue;
+      if (!page) { Zotero.debug(`[llmwiki] suggestionEngineLLM: readPage failed for ${slug}`); continue; }
 
       const sections = page.body.split(/^##\s+/m);
       let methodText = "";
@@ -177,7 +177,7 @@ export async function detectMethodOverlaps(): Promise<Suggestion[]> {
           break;
         }
       }
-      if (!methodText) continue;
+      if (!methodText) { Zotero.debug(`[llmwiki] suggestionEngineLLM: no method text for ${slug} (bodyLen=${page.body.length}, sections=${sections.length})`); continue; }
 
       const concepts: string[] = [];
       for (const m of page.body.matchAll(/\[\[(concepts|entities)\/([^\]|]+)/g)) {
