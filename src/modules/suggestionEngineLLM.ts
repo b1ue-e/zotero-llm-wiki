@@ -153,6 +153,7 @@ export async function detectMethodOverlaps(): Promise<Suggestion[]> {
     const results: Suggestion[] = [];
     const papersDir = `${baseDir}/papers`;
     const paperFiles = listDir(papersDir).filter(f => f.endsWith(".md"));
+    Zotero.debug(`[llmwiki] suggestionEngineLLM: method overlap scanning ${paperFiles.length} paper files`);
     if (paperFiles.length < 2) return [];
 
     interface PaperMethod {
@@ -191,6 +192,7 @@ export async function detectMethodOverlaps(): Promise<Suggestion[]> {
       });
     }
 
+    Zotero.debug(`[llmwiki] suggestionEngineLLM: method overlap found ${paperMethods.length} papers with method sections`);
     if (paperMethods.length < 2) return [];
 
     const papersText = paperMethods.map(p =>
