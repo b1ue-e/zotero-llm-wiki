@@ -3,7 +3,7 @@ import { readPage } from "./wikiReader";
 
 // ─── Types ───
 
-interface Suggestion {
+export interface Suggestion {
   id: string;
   type: "cross_paper_pattern" | "knowledge_gap" | "missing_paper";
   severity: "info" | "warning";
