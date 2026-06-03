@@ -79,6 +79,7 @@ export async function detectSemanticPatterns(): Promise<Suggestion[]> {
       paperLinks.set(slug, links);
     }
 
+    Zotero.debug(`[llmwiki] suggestionEngineLLM: calling LLM for semantic grouping (${conceptNames.length} concepts)`);
     const userPrompt = `Names:\n${conceptNames.map(n => `- ${n}`).join("\n")}\n\nGroup them:`;
     const response = await callLLM([
       { role: "system", content: SEMANTIC_GROUPING_PROMPT },
@@ -130,6 +131,7 @@ export async function detectSemanticPatterns(): Promise<Suggestion[]> {
       }
     }
 
+    Zotero.debug(`[llmwiki] suggestionEngineLLM: semantic patterns found ${results.length} suggestions`);
     return results.slice(0, 20);
   } catch (e: any) {
     Zotero.debug(`[llmwiki] suggestionEngineLLM: semantic patterns failed: ${e.message}`);
@@ -195,6 +197,7 @@ export async function detectMethodOverlaps(): Promise<Suggestion[]> {
       `**${p.title}** (${p.slug}): Method: ${p.method}\nConcepts: ${p.concepts.join(", ") || "none"}`
     ).join("\n\n");
 
+    Zotero.debug(`[llmwiki] suggestionEngineLLM: calling LLM for method overlap (${paperMethods.length} papers)`);
     const response = await callLLM([
       { role: "system", content: METHOD_OVERLAP_PROMPT },
       { role: "user", content: `Papers:\n\n${papersText}\n\nFind method overlaps:` },
@@ -229,6 +232,7 @@ export async function detectMethodOverlaps(): Promise<Suggestion[]> {
       });
     }
 
+    Zotero.debug(`[llmwiki] suggestionEngineLLM: method overlaps found ${results.length} suggestions`);
     return results.slice(0, 20);
   } catch (e: any) {
     Zotero.debug(`[llmwiki] suggestionEngineLLM: method overlaps failed: ${e.message}`);
