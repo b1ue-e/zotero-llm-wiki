@@ -13,7 +13,9 @@
       "Bash(git push *)",
       "Bash(gh release *)",
       "Bash(grep -i 'suggest\\\\|scan\\\\|error\\\\|Error' __TRACKED_VAR__/Zotero/llm-wiki/debug.log)",
-      "Bash(grep -v \":0$\")"
+      "Bash(grep -v \":0$\")",
+      "Bash(grep 'suggestionEngineLLM\\\\|suggestionEngine' __TRACKED_VAR__/Zotero/llm-wiki/debug.log)",
+      "Bash(grep *)"
     ]
   }
 }

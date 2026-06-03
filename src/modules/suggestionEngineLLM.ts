@@ -4,7 +4,8 @@ import { parseFrontmatter, type ParsedPage } from "./wikiReader";
 import type { Suggestion } from "./suggestionEngine";
 
 function readPaperPage(relPath: string): ParsedPage | null {
-  const fullPath = `${getWikiBaseDir()}/${relPath}`;
+  const path = relPath.endsWith(".md") ? relPath : `${relPath}.md`;
+  const fullPath = `${getWikiBaseDir()}/${path}`;
   const raw = readFile(fullPath);
   if (!raw) return null;
   const { frontmatter, body } = parseFrontmatter(raw);

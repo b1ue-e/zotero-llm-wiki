@@ -57,16 +57,8 @@ function readFile(path: string): string | null {
   const file = Components.classes["@mozilla.org/file/local;1"].createInstance(
     Components.interfaces.nsIFile,
   ) as any;
-  try {
-    file.initWithPath(path);
-  } catch (e: any) {
-    Zotero.debug(`[llmwiki] readFile: initWithPath failed for "${path.slice(-60)}": ${e.message}`);
-    return null;
-  }
-  if (!file.exists()) {
-    Zotero.debug(`[llmwiki] readFile: file not found "${path.slice(-60)}"`);
-    return null;
-  }
+  file.initWithPath(path);
+  if (!file.exists()) return null;
   // @ts-expect-error - Mozilla XPCOM
   const stream = Components.classes[
     "@mozilla.org/network/file-input-stream;1"

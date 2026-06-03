@@ -3,9 +3,9 @@ import { parseFrontmatter, type ParsedPage } from "./wikiReader";
 
 // Direct read to avoid bundle dependency issues with readPage
 function readPaperPage(relPath: string): ParsedPage | null {
-  const fullPath = `${getWikiBaseDir()}/${relPath}`;
+  const path = relPath.endsWith(".md") ? relPath : `${relPath}.md`;
+  const fullPath = `${getWikiBaseDir()}/${path}`;
   const raw = readFile(fullPath);
-  Zotero.debug(`[llmwiki] suggestionEngine readPaperPage: path=${fullPath} raw=${!!raw} len=${raw?.length || 0}`);
   if (!raw) return null;
   const { frontmatter, body } = parseFrontmatter(raw);
   return { frontmatter, body, filePath: relPath };
